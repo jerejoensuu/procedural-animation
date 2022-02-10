@@ -5,7 +5,6 @@
 
 </p>
 <br />
-<br />
 
 ## Description
 I've been fascinated by procedural animation and inverse kinematics for quite some time so I finally decided to try my hand at implementing these features in a small-scale project. Overall this proved to be an excellent learning experience.
