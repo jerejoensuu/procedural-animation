@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.InputSystem;
 
 
@@ -26,6 +27,7 @@ public class BodyManager : MonoBehaviour {
         inputs.Player.Move.canceled += ReadMovement;
         inputs.Player.Turn.performed += ReadRotation;
         inputs.Player.Turn.canceled += ReadRotation;
+        inputs.Player.Reset.performed += ResetScene;
 
         //StartCoroutine(restTimer());
     }
@@ -96,5 +98,18 @@ public class BodyManager : MonoBehaviour {
                 leg.GetComponent<LegController>().ReturnToRest();
             }
         }
+    }
+
+    void ResetScene(InputAction.CallbackContext context) {
+        SceneManager.LoadScene(0);
+    }
+
+    void OnDisable() {
+        inputs.Disable();
+        inputs.Player.Move.performed -= ReadMovement;
+        inputs.Player.Move.canceled -= ReadMovement;
+        inputs.Player.Turn.performed -= ReadRotation;
+        inputs.Player.Turn.canceled -= ReadRotation;
+        inputs.Player.Reset.performed -= ResetScene;
     }
 }
