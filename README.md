@@ -27,7 +27,7 @@ Currently the spider (V2.2) has three degrees of freedom and is able to move for
 
 
 ## Builds
-_The project currently doesn't behave entirely correctly in the build possible due to how Fast IK handles different frame rates._
+_The project currently doesn't behave entirely correctly in the build possibly due to how Fast IK handles different frame rates._
 
 - [V2.2](https://github.com/jerejoensuu/Procedural-Animation/releases/tag/v2.2)
 
