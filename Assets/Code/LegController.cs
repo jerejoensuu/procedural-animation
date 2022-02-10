@@ -60,7 +60,7 @@ public class LegController : MonoBehaviour {
             }
         }
         AlignLeg();
-        //ChangeColor();
+        ChangeColor();
     }
 
     void SetRayPos() {
@@ -91,7 +91,7 @@ public class LegController : MonoBehaviour {
         Vector3 targetPoint = steppingPoint;
         while(Vector3.Distance(target.transform.position, targetPoint) > 0.6f) {
             // Vector3 offset = Vector3.RotateTowards(Vector3.forward);
-            target.transform.position = Vector3.MoveTowards(target.transform.position, targetPoint, 0.2f);
+            target.transform.position = Vector3.MoveTowards(target.transform.position, targetPoint, 140f * Time.deltaTime);
             SineStep(targetPoint);
             yield return new WaitForSeconds(Time.deltaTime);
         }
@@ -151,12 +151,12 @@ public class LegController : MonoBehaviour {
     void SineStep(Vector3 targetPoint) {
         float distance = Vector3.Distance(targetPoint, targetOrigin);
         Vector3 targetPos = new Vector3(target.transform.position.x, targetPoint.y, target.transform.position.z);
-        float y = 3 * Mathf.Sin(Mathf.Deg2Rad * ((Vector3.Distance(targetPos, targetPoint) / distance) * 180));
+        float y = 4 * Mathf.Sin(Mathf.Deg2Rad * ((Vector3.Distance(targetPos, targetPoint) / distance) * 180));
         target.transform.position = new Vector3(target.transform.position.x, targetOrigin.y + y, target.transform.position.z);
     }
 
     void ChangeColor() {
-        transform.GetChild(1).GetChild(1).GetChild(0).GetComponent<MeshRenderer>().material.color = stepping ? Color.red : Color.black;
+        transform.GetChild(1).GetChild(1).GetChild(0).GetComponent<MeshRenderer>().material.color = joinedQueue ? Color.red : Color.black;
     }
 
     public float GetDistanceToTarget() {

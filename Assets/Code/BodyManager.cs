@@ -21,6 +21,8 @@ public class BodyManager : MonoBehaviour {
     public float maxDistance = 6;
 
     void Awake() {
+        QualitySettings.vSyncCount = 0;
+
         inputs = new Inputs();
         inputs.Enable();
         inputs.Player.Move.performed += ReadMovement;
