@@ -1,9 +1,6 @@
 <br />
-<p align="center">
-  <h1 align="center">Procedural Animation</h1>
-  <h4 align="center">A procedurally animated spider in unity using inverse kinematics.</h4>
-
-</p>
+<h1 align="center">Procedural Animation</h1>
+<h4 align="center">A procedurally animated spider in unity using inverse kinematics.</h4>
 <br />
 
 ## Description
