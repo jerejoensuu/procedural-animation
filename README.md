@@ -35,5 +35,6 @@ _The project currently doesn't behave entirely correctly in the build possibly d
 ## Future plans
 - Further optimize and clean code
 - Make creating new creatures easier
+- Jumping functionality
 - Add functionality for detecting and climbing over obstacles
 - Add functionality to scale and cling to walls and ceilings
