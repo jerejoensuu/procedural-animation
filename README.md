@@ -1,9 +1,6 @@
 <br />
-<p align="center">
-  <h1 align="center">Procedural Animation</h1>
-  <h4 align="center">A procedurally animated spider in unity using inverse kinematics.</h4>
-
-</p>
+<h1 align="center">Procedural Animation</h1>
+<h4 align="center">A procedurally animated spider in unity using inverse kinematics.</h4>
 <br />
 
 ## Description
@@ -35,5 +32,7 @@ _The project currently doesn't behave entirely correctly in the build possibly d
 ## Future plans
 - Further optimize and clean code
 - Make creating new creatures easier
+- Add Jumping functionality
 - Add functionality for detecting and climbing over obstacles
+- Add a simple environment to explore
 - Add functionality to scale and cling to walls and ceilings
