@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -20,6 +21,9 @@ namespace Code
         public float turnSpeed = 15;
         private int _restTimer = 2;
         public float maxDistance = 6;
+        public float movementSpeedMultiplier = 4;
+        
+        public bool blockMovementIfLegsAreHyperExtended = false;
 
         void Awake() {
             QualitySettings.vSyncCount = 0;
@@ -43,8 +47,15 @@ namespace Code
         /// <summary>
         /// Apply movement based on player input.
         /// </summary>
-        void ApplyMovement() {
-            if (_moving) transform.Translate(_movementDir * (moveSpeed * Time.deltaTime));
+        void ApplyMovement()
+        {
+            float speed = moveSpeed;
+            if (blockMovementIfLegsAreHyperExtended && _queue.Any(leg => leg.IsLegFullyExtended()))
+            {
+                speed *= 0.01f;
+            }
+            
+            if (_moving) transform.Translate(_movementDir * (speed * Time.deltaTime));
             if (_rotating) transform.RotateAround(transform.position, Vector3.up, turnSpeed * _rotatingDir * Time.deltaTime);
         }
 
@@ -83,11 +94,17 @@ namespace Code
             foreach (LegController queuedLeg in _queue) {
                 bool freeToStep = true;
                 foreach (LegController leg in _currentlyMoving) {
-                    if (queuedLeg.legIndex % 2 == leg.legIndex % 2) {
+                    // Check if opposing leg is moving
+                    if (queuedLeg.side != leg.side && queuedLeg.legIndex % 2 == leg.legIndex % 2) {
+                        freeToStep = false;
+                    }
+                    // Check if neighboring leg is moving
+                    if (queuedLeg.side == leg.side && Mathf.Abs(queuedLeg.legIndex - leg.legIndex) == 1) {
                         freeToStep = false;
                     }
                 }
-                if (freeToStep || queuedLeg.GetDistanceToTarget() > 1) {
+                // Ignore previous if leg is hyper-extended
+                if (freeToStep || queuedLeg.IsLegFullyExtended()) {
                     _currentlyMoving.Add(queuedLeg);
                     _toRemove.Add(queuedLeg);
                 }
@@ -97,7 +114,6 @@ namespace Code
                 _queue.Remove(leg);
             }
             _toRemove.Clear();
-        
         }
 
         /// <summary>

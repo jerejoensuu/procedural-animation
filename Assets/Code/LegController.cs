@@ -13,7 +13,6 @@ namespace Code
         public GameObject steppingArea;
         public GameObject target;
         private Vector3 _targetOrigin;
-        private float _maxDistance;
         public bool stepping = false;
         private bool _joinedQueue;
         public Side side;
@@ -24,8 +23,7 @@ namespace Code
         public Material defaultColor;
         public Material altColor;
 
-        private float MovementSpeed => _body.moveSpeed * movementSpeedMultiplier;
-        public float movementSpeedMultiplier = 4.7f;
+        private float MovementSpeed => _body.moveSpeed * _body.movementSpeedMultiplier;
 
         public enum Side{
             Right = 1,
@@ -40,18 +38,16 @@ namespace Code
             _targetOrigin = target.transform.position;
             _prevPos = transform.position;
             _velocity = Vector3.zero;
-            _maxDistance = _body.maxDistance;
         }
 
         void Update() {
-            CalculateVelocity();
             Raycast();
             if (!stepping) {
                 target.transform.position = _targetOrigin;
             }
 
             // When distance between the leg and stepping area grows big enough, attempt to step.
-            if (GetDistance() > _maxDistance && !stepping) {
+            if (GetDistance() > _body.maxDistance && !stepping) {
                 // First join the queue for legs wanting to step...
                 if (!_joinedQueue) {
                     _body.JoinQueue(this);
@@ -60,7 +56,6 @@ namespace Code
                 // ...Then step when appropriate legs are down. (More info in BodyManager)
                 if (_body.CanStep(this)) {
                     stepping  = true;
-                    _steppingPoint = GetSteppingPoint();
                     StartCoroutine(Step());
                 }
             }
@@ -96,14 +91,15 @@ namespace Code
         /// Moves the leg to new position.
         /// </summary>
         IEnumerator Step() {
-            Vector3 targetPoint = _steppingPoint;
+            _steppingPoint = GetSteppingPoint();
             // Move leg towards new position until it's close enough.
-            while(Vector3.Distance(target.transform.position, targetPoint) > 0.6f) {
-                target.transform.position = Vector3.MoveTowards(target.transform.position, targetPoint, MovementSpeed * Time.deltaTime);
-                SineStep(targetPoint); // Create stepping motion using sine waves.
+            while(Vector3.Distance(target.transform.position, _steppingPoint) > 0.6f) {
+                _steppingPoint = GetSteppingPoint();
+                target.transform.position = Vector3.MoveTowards(target.transform.position, _steppingPoint, MovementSpeed * Time.deltaTime);
+                SineStep(_steppingPoint); // Create stepping motion using sine waves.
                 yield return new WaitForSeconds(Time.deltaTime);
             }
-            target.transform.position = targetPoint;
+            target.transform.position = _steppingPoint;
             _targetOrigin = target.transform.position;
             stepping = _joinedQueue = false;
             _body.LeaveList(this); // Leave the list of currently moving legs.
@@ -130,7 +126,7 @@ namespace Code
             float distance = Vector3.Distance(_rayHitPoint, target.transform.position);
             Debug.DrawLine(_rayHitPoint, target.transform.position, Color.yellow);
 
-            if (distance >= _maxDistance) {
+            if (distance >= _body.maxDistance) {
                 color = Color.red;
             } else {
                 color = Color.green;
@@ -145,8 +141,9 @@ namespace Code
         /// </summary>
         /// <returns> Position for the leg to step to. </returns>
         Vector3 GetSteppingPoint() {
+            CalculateVelocity();
             Vector3 center = steppingArea.transform.position;
-            float radius = _maxDistance * 0.9f;
+            float radius = _body.maxDistance * 0.9f;
             Vector3 dir = _velocity;
             float angle = Vector3.SignedAngle(Vector3.forward, dir, Vector3.up);
             Vector3 point = new Vector3(
@@ -183,20 +180,29 @@ namespace Code
         /// Used by BodyManager.CheckQueue to allow the leg to pass the queue system if it ends up too far from the stepping area.
         /// </summary>
         /// <returns> Distance between leg and leg target </returns>
-        public float GetDistanceToTarget() {
-            return Vector3.Distance(limbEnd.transform.position, target.transform.position);
+        public float GetDistanceToWalkingArea() {
+            return Vector3.Distance(limbEnd.transform.position, steppingArea.transform.position);
+        }
+        
+        public bool IsLegFullyExtended() {
+            return Vector3.Distance(limbEnd.transform.position, transform.position) >= 14; // TODO: Use a variable instead of a hardcoded value.
         }
 
         /// <summary>
         /// Draws gizmos.
         /// </summary>
         void OnDrawGizmos() {
-            Gizmos.color = new Color(1, 0, 0, 0.03f);
-            Gizmos.DrawSphere(steppingArea.transform.position, _maxDistance);
-            Gizmos.color = Color.red;
-            Gizmos.DrawSphere(GetSteppingPoint(), 0.3f);
+            if (!Application.isPlaying) return;
+            
+            Gizmos.color = new Color(1, 0, 0, 0.1f);
+            Gizmos.DrawSphere(steppingArea.transform.position, _body.maxDistance);
+            
+            // Gizmos.color = Color.red;
+            // Gizmos.DrawSphere(GetSteppingPoint(), 0.3f);
+            
             Gizmos.color = Color.blue;
             Gizmos.DrawSphere(_steppingPoint, 0.3f);
+            
             Debug.DrawLine(_rayHitPoint + (Vector3.up * 0.1f), limbEnd.transform.position + (Vector3.up * 0.1f), Color.yellow);
         }
     }
