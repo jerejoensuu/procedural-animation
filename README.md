@@ -11,6 +11,14 @@ I used several resources to get myself acquinted with the basic mechanics and ma
 Currently the spider (V2.2) has three degrees of freedom and is able to move forwards and backwards, sideways and turn along its Y-axis.
 
 
+<details>
+<summary> Summary for portfolio </summary>
+  
+  - Solo project
+  - Partly ready for outside project usage
+    
+</details>
+
 ## Demonstration gifs
 <p align="center">
   <img src="./images/ForwardAndBack.gif" alt="Forward and back" width="49%" >
