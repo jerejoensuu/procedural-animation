@@ -16,6 +16,8 @@ Currently the spider (V2.2) has three degrees of freedom and is able to move for
   
   - Solo project
   - Partly ready for outside project usage
+  - Created creatures adapt to the environment and procedurally place their legs on surfaces
+  - Legs move based on the velocity of the body for natural movement
     
 </details>
 
