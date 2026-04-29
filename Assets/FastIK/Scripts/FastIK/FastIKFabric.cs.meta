@@ -9,3 +9,10 @@ MonoImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 139972
+  packageName: Fast IK
+  packageVersion: 1.2
+  assetPath: Assets/FastIK/Scripts/FastIK/FastIKFabric.cs
+  uploadId: 495221

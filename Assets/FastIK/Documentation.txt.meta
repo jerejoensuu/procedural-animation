@@ -5,3 +5,10 @@ TextScriptImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 139972
+  packageName: Fast IK
+  packageVersion: 1.2
+  assetPath: Assets/FastIK/Documentation.txt
+  uploadId: 495221
