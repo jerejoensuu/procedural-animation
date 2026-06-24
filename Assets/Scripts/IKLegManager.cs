@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(-100)]
@@ -19,9 +20,13 @@ public class IKLegManager : MonoBehaviour
         [HideInInspector] public Vector3 plantedPosition;
         [HideInInspector] public Vector3 stepStartPosition;
         [HideInInspector] public Vector3 stepEndPosition;
+        [HideInInspector] public Vector3 stepHorizontalPosition;
         [HideInInspector] public float stepProgress;
         [HideInInspector] public bool isStepping;
     }
+
+    [Header("Input")]
+    [SerializeField] private InputActionReference moveAction;
 
     [Header("Body")]
     [SerializeField] private Transform centerOfMass;
@@ -29,6 +34,9 @@ public class IKLegManager : MonoBehaviour
     [SerializeField] private bool autoCaptureHomeOffsets = true;
     [SerializeField] private bool autoCreateMissingTargets = true;
     [SerializeField] private bool keepPlantedTargetsInWorld = true;
+
+    [Header("Movement")]
+    [SerializeField] private float moveSpeed = 5f;
 
     [Header("Legs")]
     [SerializeField] private List<ManagedLeg> legs = new List<ManagedLeg>();
@@ -38,18 +46,13 @@ public class IKLegManager : MonoBehaviour
     [SerializeField] private float maxReach = 1.25f;
     [SerializeField] private float stepLength = 0.6f;
     [SerializeField] private float stepDuration = 0.18f;
-    [SerializeField] private AnimationCurve stepCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
     [SerializeField] private AnimationCurve stepHeightCurve = new AnimationCurve(
         new Keyframe(0f, 0f),
         new Keyframe(0.5f, 1f),
         new Keyframe(1f, 0f));
-    [SerializeField] private float minTimeBetweenSteps = 0.05f;
 
     [Header("Gait")]
-    [SerializeField] private float minGroupInterval = 0.12f;
-    [SerializeField] private float maxGroupInterval = 0.7f;
     [SerializeField] private bool requireGroupComplete = true;
-    [SerializeField] private bool useCadenceFallback;
 
     [Header("Balance")]
     [SerializeField] private float centerOfMassLeadTime = 0.15f;
@@ -83,8 +86,8 @@ public class IKLegManager : MonoBehaviour
     private Vector3 supportCenter;
     private Vector3 desiredSupportCenter;
     private int activeStepGroup;
-    private float lastStepStartTime;
     private bool initialized;
+    private Rigidbody bodyRigidbody;
 
     public Vector3 CurrentCenterOfMass
     {
@@ -133,7 +136,18 @@ public class IKLegManager : MonoBehaviour
 
     private void Awake()
     {
+        bodyRigidbody = Body.GetComponent<Rigidbody>();
         Initialize();
+    }
+
+    private void OnEnable()
+    {
+        moveAction?.action?.Enable();
+    }
+
+    private void OnDisable()
+    {
+        moveAction?.action?.Disable();
     }
 
     private void OnValidate()
@@ -142,15 +156,18 @@ public class IKLegManager : MonoBehaviour
         maxReach = Mathf.Max(0.01f, maxReach);
         stepLength = Mathf.Max(0f, stepLength);
         stepDuration = Mathf.Max(0.01f, stepDuration);
-        minTimeBetweenSteps = Mathf.Max(0f, minTimeBetweenSteps);
-        minGroupInterval = Mathf.Max(minTimeBetweenSteps, minGroupInterval);
-        maxGroupInterval = Mathf.Max(minGroupInterval, maxGroupInterval);
         centerOfMassLeadTime = Mathf.Max(0f, centerOfMassLeadTime);
         maxSupportCenterError = Mathf.Max(0.01f, maxSupportCenterError);
         groundProbeHeight = Mathf.Max(0f, groundProbeHeight);
         groundProbeDistance = Mathf.Max(0f, groundProbeDistance);
         velocitySmoothing = Mathf.Max(0f, velocitySmoothing);
         velocityPredictionWeight = Mathf.Max(0f, velocityPredictionWeight);
+        moveSpeed = Mathf.Max(0f, moveSpeed);
+    }
+
+    private void FixedUpdate()
+    {
+        MoveBodyHorizontally();
     }
 
     private void LateUpdate()
@@ -164,6 +181,40 @@ public class IKLegManager : MonoBehaviour
         UpdateSteppingLegs();
         UpdateSupportCenters();
         TryStartSteps();
+    }
+
+    private void MoveBodyHorizontally()
+    {
+        if (moveAction == null || moveAction.action == null)
+        {
+            return;
+        }
+
+        Vector2 moveInput = moveAction.action.ReadValue<Vector2>();
+        if (moveInput.sqrMagnitude < 0.0001f)
+        {
+            return;
+        }
+
+        Vector3 up = -GetGravityDirection();
+        Vector3 right = Vector3.ProjectOnPlane(Body.right, up);
+        Vector3 forward = Vector3.ProjectOnPlane(Body.forward, up);
+        Vector3 moveDirection = right * moveInput.x + forward * moveInput.y;
+        if (moveDirection.sqrMagnitude < 0.0001f)
+        {
+            return;
+        }
+
+        Vector3 displacement = moveDirection.normalized * (Mathf.Clamp01(moveInput.magnitude) * moveSpeed * Time.fixedDeltaTime);
+
+        if (bodyRigidbody != null)
+        {
+            bodyRigidbody.MovePosition(bodyRigidbody.position + displacement);
+        }
+        else
+        {
+            Body.position += displacement;
+        }
     }
 
     [ContextMenu("Initialize Legs")]
@@ -224,6 +275,7 @@ public class IKLegManager : MonoBehaviour
             leg.plantedPosition = startPosition;
             leg.stepStartPosition = startPosition;
             leg.stepEndPosition = startPosition;
+            leg.stepHorizontalPosition = GetHorizontalPosition(startPosition);
             leg.stepProgress = 1f;
             leg.isStepping = false;
 
@@ -234,7 +286,6 @@ public class IKLegManager : MonoBehaviour
         }
 
         activeStepGroup = GetFirstStepGroup();
-        lastStepStartTime = -maxGroupInterval;
         initialized = true;
     }
 
@@ -294,17 +345,29 @@ public class IKLegManager : MonoBehaviour
                 continue;
             }
 
+            Vector3 liveLanding = GetDesiredFootPosition(leg);
+            Vector3 liveLandingHorizontal = GetHorizontalPosition(liveLanding);
+            float remainingSwingTime = Mathf.Max((1f - leg.stepProgress) * stepDuration, Time.deltaTime);
+            Vector3 requiredVelocity = (liveLandingHorizontal - leg.stepHorizontalPosition) / remainingSwingTime;
+
+            leg.stepEndPosition = liveLanding;
             leg.stepProgress = Mathf.Clamp01(leg.stepProgress + Time.deltaTime / stepDuration);
-            float t = stepCurve != null ? stepCurve.Evaluate(leg.stepProgress) : leg.stepProgress;
+            leg.stepHorizontalPosition += requiredVelocity * Time.deltaTime;
+
+            if (leg.stepProgress >= 1f)
+            {
+                leg.stepHorizontalPosition = liveLandingHorizontal;
+            }
+
             float height = stepHeightCurve != null ? stepHeightCurve.Evaluate(leg.stepProgress) * stepHeight : Mathf.Sin(leg.stepProgress * Mathf.PI) * stepHeight;
-            Vector3 position = Vector3.Lerp(leg.stepStartPosition, leg.stepEndPosition, t) - GetGravityDirection() * height;
+            Vector3 position = BuildPositionFromHorizontal(leg.stepHorizontalPosition, liveLanding) - GetGravityDirection() * height;
 
             leg.target.position = position;
 
             if (leg.stepProgress >= 1f)
             {
-                leg.target.position = leg.stepEndPosition;
-                leg.plantedPosition = leg.stepEndPosition;
+                leg.target.position = liveLanding;
+                leg.plantedPosition = liveLanding;
                 leg.isStepping = false;
             }
         }
@@ -317,25 +380,18 @@ public class IKLegManager : MonoBehaviour
             return;
         }
 
-        float timeSinceLastStep = Time.time - lastStepStartTime;
-        if (timeSinceLastStep < minGroupInterval)
-        {
-            return;
-        }
-
         float supportError = GetPlanarDistance(supportCenter, desiredSupportCenter);
         bool anyLegPastMaxReach = IsAnyLegPastMaxReach();
         bool isMoving = IsMovingOnGroundPlane();
         float effectiveSupportError = Mathf.Max(maxSupportCenterError, stepLength);
         bool supportNeedsStep = (isMoving || allowIdleBalanceSteps) && supportError >= effectiveSupportError;
-        bool cadenceExpired = useCadenceFallback && isMoving && timeSinceLastStep >= maxGroupInterval && supportError >= effectiveSupportError;
 
-        if (!supportNeedsStep && !anyLegPastMaxReach && !cadenceExpired)
+        if (!supportNeedsStep && !anyLegPastMaxReach)
         {
             return;
         }
 
-        int groupToStep = supportNeedsStep || cadenceExpired ? FindBestSupportGroup() : FindMostOverreachedGroup();
+        int groupToStep = supportNeedsStep ? FindBestSupportGroup() : FindMostOverreachedGroup();
         if (!HasUsableLegInGroup(groupToStep))
         {
             return;
@@ -345,7 +401,6 @@ public class IKLegManager : MonoBehaviour
 
         if (startedAny)
         {
-            lastStepStartTime = Time.time;
             activeStepGroup = GetNextStepGroup(groupToStep);
         }
     }
@@ -375,6 +430,7 @@ public class IKLegManager : MonoBehaviour
         leg.stepStartPosition = leg.plantedPosition;
         leg.target.position = leg.stepStartPosition;
         leg.stepEndPosition = desiredPosition;
+        leg.stepHorizontalPosition = GetHorizontalPosition(leg.stepStartPosition);
         leg.stepProgress = 0f;
         leg.isStepping = true;
     }
@@ -677,6 +733,17 @@ public class IKLegManager : MonoBehaviour
     {
         Vector3 up = -GetGravityDirection();
         return Vector3.Distance(Vector3.ProjectOnPlane(a, up), Vector3.ProjectOnPlane(b, up));
+    }
+
+    private Vector3 GetHorizontalPosition(Vector3 position)
+    {
+        return Vector3.ProjectOnPlane(position, -GetGravityDirection());
+    }
+
+    private Vector3 BuildPositionFromHorizontal(Vector3 horizontalPosition, Vector3 heightReference)
+    {
+        Vector3 up = -GetGravityDirection();
+        return horizontalPosition + up * Vector3.Dot(heightReference, up);
     }
 
     private static Vector3 ProjectPointToPlane(Vector3 point, Vector3 planePoint, Vector3 planeNormal)
