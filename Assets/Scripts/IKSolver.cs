@@ -43,48 +43,49 @@ public class IKSolver : MonoBehaviour
         [Range(0f, 1f)] public float stiffness;
     }
 
-    [Header("Shared Settings")]
-    [SerializeField] private IKSolverSettings settingsProfile;
+    [Header("Shared Settings")] [SerializeField]
+    private IKSolverSettings settingsProfile;
+
     [SerializeField] private bool applySettingsProfileOnValidate = true;
 
-    [Header("Chain")]
-    [SerializeField] private Transform root;
+    [Header("Chain")] [SerializeField] private Transform root;
     [SerializeField] private Transform endEffector;
     [SerializeField] private List<Transform> orderedJoints = new List<Transform>();
     [SerializeField] private bool autoBuildFromRootToEnd = true;
 
-    [Header("Targets")]
-    [SerializeField] private Transform effectorTarget;
+    [Header("Targets")] [SerializeField] private Transform effectorTarget;
     [SerializeField] private Transform bendPoleTarget;
     [SerializeField] private Transform orientationReference;
     [SerializeField] private Transform restPose;
     [SerializeField] private bool matchTargetRotation = true;
     [SerializeField] private bool keepBendPoleRelativeToOrientation = true;
 
-    [Header("Per-Joint Settings")]
-    [SerializeField] private List<JointSettings> perJointSettings = new List<JointSettings>();
+    [Header("Per-Joint Settings")] [SerializeField]
+    private List<JointSettings> perJointSettings = new List<JointSettings>();
 
-    [Header("Shape Bias")]
-    [Range(0f, 1f)] [SerializeField] private float solverWeight = 1f;
+    [Header("Shape Bias")] [Range(0f, 1f)] [SerializeField]
+    private float solverWeight = 1f;
+
     [Range(0f, 1f)] [SerializeField] private float restPoseWeight = 0.15f;
     [Range(0f, 1f)] [SerializeField] private float poleWeight = 1f;
 
-    [Header("Foot/Contact Behavior")]
-    [SerializeField] private bool useContact;
+    [Header("Foot/Contact Behavior")] [SerializeField]
+    private bool useContact;
+
     [SerializeField] private LayerMask contactMask = ~0;
     [SerializeField] private Vector3 contactRayLocalDirection = Vector3.down;
     [SerializeField] private float contactRayDistance = 1f;
     [SerializeField] private float contactOffset = 0.02f;
     [Range(0f, 1f)] [SerializeField] private float contactWeight = 1f;
 
-    [Header("Advanced Solver")]
-    [SerializeField] private SolveTiming solveTiming = SolveTiming.LateUpdate;
+    [Header("Advanced Solver")] [SerializeField]
+    private SolveTiming solveTiming = SolveTiming.LateUpdate;
+
     [Min(1)] [SerializeField] private int iterations = 10;
     [Min(0.00001f)] [SerializeField] private float tolerance = 0.001f;
     [SerializeField] private bool initializeOnStart = true;
 
-    [Header("Debug")]
-    [SerializeField] private bool drawGizmos = true;
+    [Header("Debug")] [SerializeField] private bool drawGizmos = true;
     [SerializeField] private Color chainColor = Color.green;
     [SerializeField] private Color targetColor = Color.cyan;
     [SerializeField] private Color poleColor = Color.yellow;
@@ -93,56 +94,61 @@ public class IKSolver : MonoBehaviour
     [SerializeField] private Color lockedColor = Color.red;
     [SerializeField] private float gizmoSize = 0.04f;
 
-    private readonly List<Transform> restPoseJoints = new List<Transform>();
-    private Vector3[] positions;
-    private Vector3[] restDirections;
-    private Vector3[] restLocalDirections;
-    private float[] lengths;
-    private Quaternion[] restLocalRotations;
-    private float[] hingeAngles;
-    private Quaternion restOrientationReferenceRotation;
-    private Vector3 restBendPoleReferencePosition;
-    private float totalLength;
-    private bool initialized;
+    private readonly List<Transform> _restPoseJoints = new();
+    private Vector3[] _positions;
+    private Vector3[] _restDirections;
+    private Vector3[] _restLocalDirections;
+    private float[] _lengths;
+    private Quaternion[] _restLocalRotations;
+    private float[] _hingeAngles;
+    private Quaternion _restOrientationReferenceRotation;
+    private Vector3 _restBendPoleReferencePosition;
+    private float _totalLength;
+    private bool _initialized;
 
     public Transform Root
     {
-        get { return root; }
-        set { root = value; initialized = false; }
+        get => root;
+        set
+        {
+            root = value;
+            _initialized = false;
+        }
     }
 
     public Transform EndEffector
     {
-        get { return endEffector; }
-        set { endEffector = value; initialized = false; }
+        get => endEffector;
+        set
+        {
+            endEffector = value;
+            _initialized = false;
+        }
     }
 
     public Transform EffectorTarget
     {
-        get { return effectorTarget; }
-        set { effectorTarget = value; }
+        get => effectorTarget;
+        set => effectorTarget = value;
     }
 
     public IKSolverSettings SettingsProfile
     {
-        get { return settingsProfile; }
-        set { settingsProfile = value; }
+        get => settingsProfile;
+        set => settingsProfile = value;
     }
 
     public Transform OrientationReference
     {
-        get { return orientationReference; }
+        get => orientationReference;
         set
         {
             orientationReference = value;
-            initialized = false;
+            _initialized = false;
         }
     }
 
-    public IReadOnlyList<Transform> OrderedJoints
-    {
-        get { return orderedJoints; }
-    }
+    public IReadOnlyList<Transform> OrderedJoints => orderedJoints;
 
     private void Reset()
     {
@@ -173,7 +179,7 @@ public class IKSolver : MonoBehaviour
         EnsureSettingsCount();
         if (!Application.isPlaying)
         {
-            initialized = false;
+            _initialized = false;
         }
     }
 
@@ -200,7 +206,7 @@ public class IKSolver : MonoBehaviour
 
         if (root == null || endEffector == null)
         {
-            initialized = false;
+            _initialized = false;
             return;
         }
 
@@ -216,29 +222,29 @@ public class IKSolver : MonoBehaviour
             current = current.parent;
         }
 
-        if (orderedJoints.Count == 0 || orderedJoints[orderedJoints.Count - 1] != root)
+        if (orderedJoints.Count == 0 || orderedJoints[^1] != root)
         {
             orderedJoints.Clear();
-            initialized = false;
+            _initialized = false;
             return;
         }
 
         orderedJoints.Reverse();
         EnsureSettingsCount();
-        initialized = false;
+        _initialized = false;
     }
 
     [ContextMenu("Capture Current Rest Pose")]
     public void CaptureCurrentRestPose()
     {
         EnsureSettingsCount();
-        restLocalRotations = new Quaternion[orderedJoints.Count];
+        _restLocalRotations = new Quaternion[orderedJoints.Count];
         for (int i = 0; i < orderedJoints.Count; i++)
         {
-            restLocalRotations[i] = orderedJoints[i] != null ? orderedJoints[i].localRotation : Quaternion.identity;
+            _restLocalRotations[i] = orderedJoints[i] != null ? orderedJoints[i].localRotation : Quaternion.identity;
         }
 
-        initialized = false;
+        _initialized = false;
     }
 
     [ContextMenu("Apply Settings Profile")]
@@ -257,10 +263,10 @@ public class IKSolver : MonoBehaviour
         settingsProfile = profile;
 
         perJointSettings.Clear();
-        IReadOnlyList<JointSettings> profileJointSettings = profile.PerJointSettings;
-        for (int i = 0; i < profileJointSettings.Count; i++)
+        var profileJointSettings = profile.PerJointSettings;
+        foreach (var jointSettings in profileJointSettings)
         {
-            perJointSettings.Add(IKSolverSettings.CloneJointSettings(profileJointSettings[i]));
+            perJointSettings.Add(IKSolverSettings.CloneJointSettings(jointSettings));
         }
 
         solverWeight = profile.SolverWeight;
@@ -283,7 +289,7 @@ public class IKSolver : MonoBehaviour
         gizmoSize = profile.GizmoSize;
 
         EnsureSettingsCount();
-        initialized = false;
+        _initialized = false;
     }
 
     [ContextMenu("Copy Current Settings To Profile")]
@@ -337,27 +343,28 @@ public class IKSolver : MonoBehaviour
         int count = orderedJoints.Count;
         if (count < 2 || orderedJoints[0] == null || orderedJoints[count - 1] == null)
         {
-            initialized = false;
+            _initialized = false;
             return;
         }
 
-        positions = new Vector3[count];
-        restDirections = new Vector3[count - 1];
-        restLocalDirections = new Vector3[count - 1];
-        lengths = new float[count - 1];
-        hingeAngles = new float[count];
-        restOrientationReferenceRotation = orientationReference != null ? orientationReference.rotation : Quaternion.identity;
-        restBendPoleReferencePosition = orientationReference != null && bendPoleTarget != null
+        _positions = new Vector3[count];
+        _restDirections = new Vector3[count - 1];
+        _restLocalDirections = new Vector3[count - 1];
+        _lengths = new float[count - 1];
+        _hingeAngles = new float[count];
+        _restOrientationReferenceRotation =
+            orientationReference != null ? orientationReference.rotation : Quaternion.identity;
+        _restBendPoleReferencePosition = orientationReference != null && bendPoleTarget != null
             ? orientationReference.InverseTransformPoint(bendPoleTarget.position)
             : Vector3.zero;
-        totalLength = 0f;
+        _totalLength = 0f;
 
-        if (restLocalRotations == null || restLocalRotations.Length != count)
+        if (_restLocalRotations == null || _restLocalRotations.Length != count)
         {
-            restLocalRotations = new Quaternion[count];
+            _restLocalRotations = new Quaternion[count];
             for (int i = 0; i < count; i++)
             {
-                restLocalRotations[i] = orderedJoints[i].localRotation;
+                _restLocalRotations[i] = orderedJoints[i].localRotation;
             }
         }
 
@@ -367,13 +374,13 @@ public class IKSolver : MonoBehaviour
         {
             Vector3 from = GetRestPosition(i);
             Vector3 to = GetRestPosition(i + 1);
-            restDirections[i] = to - from;
-            restLocalDirections[i] = GetStableLocalDirection(i);
-            lengths[i] = restDirections[i].magnitude;
-            totalLength += lengths[i];
+            _restDirections[i] = to - from;
+            _restLocalDirections[i] = GetStableLocalDirection(i);
+            _lengths[i] = _restDirections[i].magnitude;
+            _totalLength += _lengths[i];
         }
 
-        initialized = true;
+        _initialized = true;
     }
 
     public void Solve()
@@ -383,12 +390,12 @@ public class IKSolver : MonoBehaviour
             return;
         }
 
-        if (!initialized || positions == null || positions.Length != orderedJoints.Count)
+        if (!_initialized || _positions == null || _positions.Length != orderedJoints.Count)
         {
             Initialize();
         }
 
-        if (!initialized)
+        if (!_initialized)
         {
             return;
         }
@@ -398,54 +405,57 @@ public class IKSolver : MonoBehaviour
         {
             if (orderedJoints[i] == null)
             {
-                initialized = false;
+                _initialized = false;
                 return;
             }
 
-            positions[i] = orderedJoints[i].position;
+            if (_positions != null) _positions[i] = orderedJoints[i].position;
         }
 
         Vector3 targetPosition = GetTargetPosition();
-        Vector3 rootPosition = positions[0];
-
-        if (totalLength <= 0.000001f)
+        if (_positions != null)
         {
-            return;
-        }
+            Vector3 rootPosition = _positions[0];
 
-        if ((targetPosition - rootPosition).sqrMagnitude >= totalLength * totalLength)
-        {
-            Vector3 direction = SafeDirection(targetPosition - rootPosition, GetRestDirection(0));
-            for (int i = 1; i < count; i++)
+            if (_totalLength <= 0.000001f)
             {
-                positions[i] = positions[i - 1] + direction * lengths[i - 1];
+                return;
             }
-        }
-        else
-        {
-            ApplyRestPoseBias(count);
 
-            for (int iteration = 0; iteration < iterations; iteration++)
+            if ((targetPosition - rootPosition).sqrMagnitude >= _totalLength * _totalLength)
             {
-                positions[count - 1] = targetPosition;
-
-                for (int i = count - 2; i >= 0; i--)
-                {
-                    Vector3 direction = SafeDirection(positions[i] - positions[i + 1], -GetRestDirection(i));
-                    positions[i] = positions[i + 1] + direction * lengths[i];
-                }
-
-                positions[0] = rootPosition;
-
+                Vector3 direction = SafeDirection(targetPosition - rootPosition, GetRestDirection(0));
                 for (int i = 1; i < count; i++)
                 {
-                    Vector3 direction = SafeDirection(positions[i] - positions[i - 1], GetRestDirection(i - 1));
-                    positions[i] = positions[i - 1] + direction * lengths[i - 1];
+                    _positions[i] = _positions[i - 1] + direction * _lengths[i - 1];
                 }
+            }
+            else
+            {
+                ApplyRestPoseBias(count);
 
-                if ((positions[count - 1] - targetPosition).sqrMagnitude <= tolerance * tolerance)
+                for (int iteration = 0; iteration < iterations; iteration++)
                 {
-                    break;
+                    _positions[count - 1] = targetPosition;
+
+                    for (int i = count - 2; i >= 0; i--)
+                    {
+                        Vector3 direction = SafeDirection(_positions[i] - _positions[i + 1], -GetRestDirection(i));
+                        _positions[i] = _positions[i + 1] + direction * _lengths[i];
+                    }
+
+                    _positions[0] = rootPosition;
+
+                    for (int i = 1; i < count; i++)
+                    {
+                        Vector3 direction = SafeDirection(_positions[i] - _positions[i - 1], GetRestDirection(i - 1));
+                        _positions[i] = _positions[i - 1] + direction * _lengths[i - 1];
+                    }
+
+                    if ((_positions[count - 1] - targetPosition).sqrMagnitude <= tolerance * tolerance)
+                    {
+                        break;
+                    }
                 }
             }
         }
@@ -471,7 +481,8 @@ public class IKSolver : MonoBehaviour
             rayDirection = Vector3.down;
         }
 
-        if (Physics.Raycast(effectorTarget.position, rayDirection, out RaycastHit hit, contactRayDistance, contactMask, QueryTriggerInteraction.Ignore))
+        if (Physics.Raycast(effectorTarget.position, rayDirection, out RaycastHit hit, contactRayDistance, contactMask,
+                QueryTriggerInteraction.Ignore))
         {
             Vector3 contactPosition = hit.point + hit.normal * contactOffset;
             targetPosition = Vector3.Lerp(targetPosition, contactPosition, contactWeight);
@@ -495,8 +506,8 @@ public class IKSolver : MonoBehaviour
                 continue;
             }
 
-            Vector3 desiredPosition = positions[i] + desiredDirection.normalized * lengths[i];
-            positions[i + 1] = Vector3.Lerp(positions[i + 1], desiredPosition, restPoseWeight);
+            Vector3 desiredPosition = _positions[i] + desiredDirection.normalized * _lengths[i];
+            _positions[i + 1] = Vector3.Lerp(_positions[i + 1], desiredPosition, restPoseWeight);
         }
     }
 
@@ -510,11 +521,11 @@ public class IKSolver : MonoBehaviour
         Vector3 polePosition = GetBendPolePosition();
         for (int i = 1; i < count - 1; i++)
         {
-            Plane plane = new Plane(positions[i + 1] - positions[i - 1], positions[i - 1]);
+            Plane plane = new Plane(_positions[i + 1] - _positions[i - 1], _positions[i - 1]);
             Vector3 projectedPole = plane.ClosestPointOnPlane(polePosition);
-            Vector3 projectedJoint = plane.ClosestPointOnPlane(positions[i]);
-            Vector3 from = projectedJoint - positions[i - 1];
-            Vector3 to = projectedPole - positions[i - 1];
+            Vector3 projectedJoint = plane.ClosestPointOnPlane(_positions[i]);
+            Vector3 from = projectedJoint - _positions[i - 1];
+            Vector3 to = projectedPole - _positions[i - 1];
 
             if (from.sqrMagnitude <= 0.000001f || to.sqrMagnitude <= 0.000001f)
             {
@@ -522,7 +533,8 @@ public class IKSolver : MonoBehaviour
             }
 
             float angle = Vector3.SignedAngle(from, to, plane.normal) * poleWeight;
-            positions[i] = Quaternion.AngleAxis(angle, plane.normal) * (positions[i] - positions[i - 1]) + positions[i - 1];
+            _positions[i] = Quaternion.AngleAxis(angle, plane.normal) * (_positions[i] - _positions[i - 1]) +
+                            _positions[i - 1];
         }
     }
 
@@ -533,12 +545,13 @@ public class IKSolver : MonoBehaviour
             JointSettings settings = perJointSettings[i];
             if (settings.constraintType == JointConstraintType.Locked)
             {
-                orderedJoints[i].localRotation = Quaternion.Slerp(orderedJoints[i].localRotation, restLocalRotations[i], solverWeight);
+                orderedJoints[i].localRotation =
+                    Quaternion.Slerp(orderedJoints[i].localRotation, _restLocalRotations[i], solverWeight);
                 continue;
             }
 
             Vector3 currentDirection = orderedJoints[i + 1].position - orderedJoints[i].position;
-            Vector3 solvedDirection = positions[i + 1] - positions[i];
+            Vector3 solvedDirection = _positions[i + 1] - _positions[i];
             if (currentDirection.sqrMagnitude <= 0.000001f || solvedDirection.sqrMagnitude <= 0.000001f)
             {
                 continue;
@@ -551,7 +564,8 @@ public class IKSolver : MonoBehaviour
                 continue;
             }
 
-            Quaternion targetRotation = Quaternion.FromToRotation(currentDirection, solvedDirection) * orderedJoints[i].rotation;
+            Quaternion targetRotation = Quaternion.FromToRotation(currentDirection, solvedDirection) *
+                                        orderedJoints[i].rotation;
             orderedJoints[i].rotation = Quaternion.Slerp(orderedJoints[i].rotation, targetRotation, jointWeight);
             ApplyConstraint(i);
         }
@@ -581,13 +595,12 @@ public class IKSolver : MonoBehaviour
 
         if (settings.constraintType == JointConstraintType.Locked)
         {
-            joint.localRotation = restLocalRotations[index];
+            joint.localRotation = _restLocalRotations[index];
             return;
         }
 
-        Quaternion rest = restLocalRotations[index];
+        Quaternion rest = _restLocalRotations[index];
         Quaternion delta = Quaternion.Inverse(rest) * joint.localRotation;
-        Vector3 euler = NormalizeEuler(delta.eulerAngles);
 
         if (settings.constraintType == JointConstraintType.Hinge)
         {
@@ -596,7 +609,7 @@ public class IKSolver : MonoBehaviour
             angle = GetContinuousHingeAngle(index, angle);
             angle = ClampHingeAngle(angle, settings);
             angle = Mathf.Lerp(angle, settings.preferredAngle, settings.stiffness);
-            hingeAngles[index] = angle;
+            _hingeAngles[index] = angle;
             joint.localRotation = rest * Quaternion.AngleAxis(angle, axis);
             return;
         }
@@ -615,7 +628,7 @@ public class IKSolver : MonoBehaviour
         JointSettings settings = perJointSettings[index];
         Transform joint = orderedJoints[index];
         Vector3 axis = AxisVector(settings.axis);
-        Vector3 restDirection = restLocalDirections[index];
+        Vector3 restDirection = _restLocalDirections[index];
 
         if (restDirection.sqrMagnitude <= 0.000001f || solvedDirection.sqrMagnitude <= 0.000001f)
         {
@@ -625,7 +638,7 @@ public class IKSolver : MonoBehaviour
 
         Quaternion parentRotation = joint.parent != null ? joint.parent.rotation : Quaternion.identity;
         Vector3 localSolvedDirection = Quaternion.Inverse(parentRotation) * solvedDirection.normalized;
-        Quaternion rest = restLocalRotations[index];
+        Quaternion rest = _restLocalRotations[index];
         Vector3 localRestDirection = rest * restDirection.normalized;
         Vector3 hingeAxis = rest * axis;
 
@@ -640,7 +653,7 @@ public class IKSolver : MonoBehaviour
         float angle = GetContinuousHingeAngle(index, Vector3.SignedAngle(projectedRest, projectedSolved, hingeAxis));
         angle = ClampHingeAngle(angle, settings);
         angle = Mathf.Lerp(angle, settings.preferredAngle, settings.stiffness);
-        hingeAngles[index] = angle;
+        _hingeAngles[index] = angle;
 
         Quaternion targetLocalRotation = rest * Quaternion.AngleAxis(angle, axis);
         joint.localRotation = Quaternion.Slerp(joint.localRotation, targetLocalRotation, jointWeight);
@@ -716,7 +729,7 @@ public class IKSolver : MonoBehaviour
         Transform joint = orderedJoints[index];
         Vector3 axis = AxisVector(settings.axis);
         Quaternion parentRotation = joint.parent != null ? joint.parent.rotation : Quaternion.identity;
-        Quaternion rest = restLocalRotations[index];
+        Quaternion rest = _restLocalRotations[index];
         Vector3 hingeAxisWorld = parentRotation * rest * axis;
 
         Vector3 projectedEnd = Vector3.ProjectOnPlane(toEnd, hingeAxisWorld);
@@ -731,7 +744,7 @@ public class IKSolver : MonoBehaviour
         float currentAngle = GetCurrentHingeAngle(index, axis);
         float angle = ClampHingeAngle(currentAngle + angleDelta, settings);
         angle = Mathf.Lerp(angle, settings.preferredAngle, settings.stiffness);
-        hingeAngles[index] = angle;
+        _hingeAngles[index] = angle;
         joint.localRotation = rest * Quaternion.AngleAxis(angle, axis);
     }
 
@@ -750,15 +763,15 @@ public class IKSolver : MonoBehaviour
 
     private void BuildRestPoseLookup()
     {
-        restPoseJoints.Clear();
+        _restPoseJoints.Clear();
         if (restPose == null || root == null)
         {
             return;
         }
 
-        for (int i = 0; i < orderedJoints.Count; i++)
+        foreach (var joint in orderedJoints)
         {
-            restPoseJoints.Add(FindRestPoseJoint(orderedJoints[i]));
+            _restPoseJoints.Add(FindRestPoseJoint(joint));
         }
     }
 
@@ -799,9 +812,9 @@ public class IKSolver : MonoBehaviour
 
     private Vector3 GetRestPosition(int index)
     {
-        if (restPoseJoints.Count == orderedJoints.Count && restPoseJoints[index] != null)
+        if (_restPoseJoints.Count == orderedJoints.Count && _restPoseJoints[index] != null)
         {
-            return restPoseJoints[index].position;
+            return _restPoseJoints[index].position;
         }
 
         return orderedJoints[index].position;
@@ -823,13 +836,14 @@ public class IKSolver : MonoBehaviour
     private Vector3 GetRestDirection(int index)
     {
         Vector3 restDirection;
-        if (restPoseJoints.Count == orderedJoints.Count && restPoseJoints[index] != null && restPoseJoints[index + 1] != null)
+        if (_restPoseJoints.Count == orderedJoints.Count && _restPoseJoints[index] != null &&
+            _restPoseJoints[index + 1] != null)
         {
-            restDirection = restPoseJoints[index + 1].position - restPoseJoints[index].position;
+            restDirection = _restPoseJoints[index + 1].position - _restPoseJoints[index].position;
         }
         else
         {
-            restDirection = restDirections[index];
+            restDirection = _restDirections[index];
         }
 
         if (orientationReference == null)
@@ -837,7 +851,8 @@ public class IKSolver : MonoBehaviour
             return restDirection;
         }
 
-        Quaternion referenceDelta = orientationReference.rotation * Quaternion.Inverse(restOrientationReferenceRotation);
+        Quaternion referenceDelta =
+            orientationReference.rotation * Quaternion.Inverse(_restOrientationReferenceRotation);
         return referenceDelta * restDirection;
     }
 
@@ -848,7 +863,7 @@ public class IKSolver : MonoBehaviour
             return bendPoleTarget != null ? bendPoleTarget.position : Vector3.zero;
         }
 
-        return orientationReference.TransformPoint(restBendPoleReferencePosition);
+        return orientationReference.TransformPoint(_restBendPoleReferencePosition);
     }
 
     private static Vector3 AxisVector(ConstraintAxis axis)
@@ -882,19 +897,19 @@ public class IKSolver : MonoBehaviour
 
     private float GetContinuousHingeAngle(int index, float angle)
     {
-        if (hingeAngles == null || index < 0 || index >= hingeAngles.Length)
+        if (_hingeAngles == null || index < 0 || index >= _hingeAngles.Length)
         {
             return angle;
         }
 
-        float reference = hingeAngles[index];
+        float reference = _hingeAngles[index];
         return reference + Mathf.DeltaAngle(reference, angle);
     }
 
     private float GetCurrentHingeAngle(int index, Vector3 axis)
     {
         Transform joint = orderedJoints[index];
-        Quaternion delta = Quaternion.Inverse(restLocalRotations[index]) * joint.localRotation;
+        Quaternion delta = Quaternion.Inverse(_restLocalRotations[index]) * joint.localRotation;
         return GetContinuousHingeAngle(index, ExtractTwistAngle(delta, axis));
     }
 
@@ -904,7 +919,8 @@ public class IKSolver : MonoBehaviour
         for (int i = 0; i < jointCount; i++)
         {
             JointConstraintType constraintType = perJointSettings[i].constraintType;
-            if (constraintType == JointConstraintType.Hinge || constraintType == JointConstraintType.BallSocket || constraintType == JointConstraintType.Locked)
+            if (constraintType == JointConstraintType.Hinge || constraintType == JointConstraintType.BallSocket ||
+                constraintType == JointConstraintType.Locked)
             {
                 return true;
             }
@@ -975,7 +991,8 @@ public class IKSolver : MonoBehaviour
     {
         Quaternion twist = ExtractTwist(rotation, axis);
 
-        float angle = 2f * Mathf.Atan2(Vector3.Dot(new Vector3(twist.x, twist.y, twist.z), axis), twist.w) * Mathf.Rad2Deg;
+        float angle = 2f * Mathf.Atan2(Vector3.Dot(new Vector3(twist.x, twist.y, twist.z), axis), twist.w) *
+                      Mathf.Rad2Deg;
         return Mathf.DeltaAngle(0f, angle);
     }
 

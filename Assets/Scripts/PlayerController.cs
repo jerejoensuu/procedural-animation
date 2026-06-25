@@ -7,8 +7,9 @@ public class PlayerController : MonoBehaviour
     [Header("Input")] [SerializeField] private InputActionReference moveAction;
     [SerializeField] private InputActionReference lookAction;
 
-    [Header("Surface Movement")]
-    [SerializeField] private LayerMask surfaceMask = ~0;
+    [Header("Surface Movement")] [SerializeField]
+    private LayerMask surfaceMask = ~0;
+
     [SerializeField] private float moveSpeed = 5f;
     [SerializeField] private float surfaceOffset = 0.5f;
     [SerializeField] private float surfaceSnapSpeed = 8f;
@@ -17,8 +18,9 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float maxSurfaceAngleChange = 140f;
     [SerializeField] private float rotationSpeed = 14f;
 
-    [Header("Hook Probe")]
-    [SerializeField] private float hookForwardDistance = 1.1f;
+    [Header("Hook Probe")] [SerializeField]
+    private float hookForwardDistance = 1.1f;
+
     [SerializeField] private float hookNormalClearance = 0.75f;
     [SerializeField] private float hookReturnDistance = 2.25f;
     [SerializeField] private float hookSideOffset = 0.45f;
@@ -32,8 +34,9 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private Color surfacePlaneColor = new Color(0f, 1f, 0.7f, 0.35f);
     [SerializeField] private Color currentSurfacePlaneColor = new Color(1f, 1f, 1f, 0.35f);
 
-    [Header("Visual Surface Blending")]
-    [SerializeField] private Transform visualRoot;
+    [Header("Visual Surface Blending")] [SerializeField]
+    private Transform visualRoot;
+
     [SerializeField] private float visualAlignDegreesPerSecond = 540f;
     [SerializeField] private float visualProbeRadius = 0.65f;
     [SerializeField] private float visualProbeForwardOffset = 0.35f;
@@ -47,18 +50,18 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float minPitch = -80f;
     [SerializeField] private float maxPitch = 80f;
 
-    private Rigidbody rb;
-    private Collider[] ownColliders;
-    private float pitch;
-    private SurfaceHit currentSurface;
-    private Vector3 surfaceVelocity;
-    private bool hasSurface;
-    private float yawInput;
-    private Vector3 visualSurfaceNormal;
-    private bool hasVisualSurfaceNormal;
-    private Quaternion visualBaseLocalRotation;
-    private Quaternion visualBaseWorldRotation;
-    private bool hasVisualBaseRotation;
+    private Rigidbody _rb;
+    private Collider[] _ownColliders;
+    private float _pitch;
+    private SurfaceHit _currentSurface;
+    private Vector3 _surfaceVelocity;
+    private bool _hasSurface;
+    private float _yawInput;
+    private Vector3 _visualSurfaceNormal;
+    private bool _hasVisualSurfaceNormal;
+    private Quaternion _visualBaseLocalRotation;
+    private Quaternion _visualBaseWorldRotation;
+    private bool _hasVisualBaseRotation;
 
     private struct SurfaceHit
     {
@@ -75,12 +78,12 @@ public class PlayerController : MonoBehaviour
 
     private void Awake()
     {
-        rb = GetComponent<Rigidbody>();
-        ownColliders = GetComponentsInChildren<Collider>();
+        _rb = GetComponent<Rigidbody>();
+        _ownColliders = GetComponentsInChildren<Collider>();
 
-        rb.useGravity = false;
-        rb.freezeRotation = true;
-        rb.interpolation = RigidbodyInterpolation.Interpolate;
+        _rb.useGravity = false;
+        _rb.freezeRotation = true;
+        _rb.interpolation = RigidbodyInterpolation.Interpolate;
 
         CacheVisualBaseRotation();
     }
@@ -104,25 +107,25 @@ public class PlayerController : MonoBehaviour
 
     private void FixedUpdate()
     {
-        if (!hasSurface && !FindInitialSurface(out currentSurface))
+        if (!_hasSurface && !FindInitialSurface(out _currentSurface))
         {
-            surfaceVelocity = Vector3.zero;
+            _surfaceVelocity = Vector3.zero;
             return;
         }
 
-        hasSurface = true;
+        _hasSurface = true;
 
         Vector3 desiredDirection = ReadDesiredMoveDirection();
         if (desiredDirection.sqrMagnitude < 0.0001f)
         {
-            surfaceVelocity = Vector3.zero;
-            AlignToSurface(currentSurface.Normal);
+            _surfaceVelocity = Vector3.zero;
+            AlignToSurface(_currentSurface.Normal);
             AlignVisualToSurroundingSurfaces();
             SnapToCurrentSurface();
             return;
         }
 
-        Vector3 surfaceDirection = Vector3.ProjectOnPlane(desiredDirection, currentSurface.Normal);
+        Vector3 surfaceDirection = Vector3.ProjectOnPlane(desiredDirection, _currentSurface.Normal);
         if (surfaceDirection.sqrMagnitude < 0.0001f)
         {
             return;
@@ -132,22 +135,22 @@ public class PlayerController : MonoBehaviour
 
         if (TryFindNextSurface(surfaceDirection, out SurfaceHit nextSurface))
         {
-            surfaceVelocity = surfaceDirection * moveSpeed;
-            currentSurface = MoveAlongSurface(nextSurface, surfaceVelocity);
+            _surfaceVelocity = surfaceDirection * moveSpeed;
+            _currentSurface = MoveAlongSurface(nextSurface, _surfaceVelocity);
             AlignToSurface(nextSurface.Normal);
             AlignVisualToSurroundingSurfaces();
         }
         else if (TryLocalSurfaceSearch(out SurfaceHit nearbySurface))
         {
-            currentSurface = nearbySurface;
-            surfaceVelocity = Vector3.zero;
+            _currentSurface = nearbySurface;
+            _surfaceVelocity = Vector3.zero;
             SnapToCurrentSurface();
-            AlignToSurface(currentSurface.Normal);
+            AlignToSurface(_currentSurface.Normal);
             AlignVisualToSurroundingSurfaces();
         }
         else
         {
-            surfaceVelocity = Vector3.zero;
+            _surfaceVelocity = Vector3.zero;
         }
     }
 
@@ -167,12 +170,12 @@ public class PlayerController : MonoBehaviour
         bool pointerInput = lookAction.action.activeControl?.device is Pointer;
         float sensitivity = pointerInput ? mouseLookSensitivity : stickLookSensitivity * Time.deltaTime;
 
-        yawInput += lookInput.x * sensitivity;
+        _yawInput += lookInput.x * sensitivity;
 
         if (cameraAnchor != null)
         {
-            pitch = Mathf.Clamp(pitch - lookInput.y * sensitivity, minPitch, maxPitch);
-            cameraAnchor.localRotation = Quaternion.Euler(pitch, 0f, 0f);
+            _pitch = Mathf.Clamp(_pitch - lookInput.y * sensitivity, minPitch, maxPitch);
+            cameraAnchor.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
         }
     }
 
@@ -189,15 +192,15 @@ public class PlayerController : MonoBehaviour
             return Vector3.zero;
         }
 
-        Vector3 right = Vector3.ProjectOnPlane(transform.right, currentSurface.Normal).normalized;
-        Vector3 forward = Vector3.ProjectOnPlane(transform.forward, currentSurface.Normal).normalized;
+        Vector3 right = Vector3.ProjectOnPlane(transform.right, _currentSurface.Normal).normalized;
+        Vector3 forward = Vector3.ProjectOnPlane(transform.forward, _currentSurface.Normal).normalized;
 
         return (right * moveInput.x + forward * moveInput.y).normalized;
     }
 
     private bool FindInitialSurface(out SurfaceHit surface)
     {
-        Vector3 origin = rb.position + transform.up * surfaceOffset;
+        Vector3 origin = _rb.position + transform.up * surfaceOffset;
 
         if (TryRaycast(origin, -transform.up, initialSurfaceProbeDistance + surfaceOffset, out RaycastHit hit) ||
             TryRaycast(origin, transform.up, initialSurfaceProbeDistance, out hit))
@@ -222,9 +225,8 @@ public class PlayerController : MonoBehaviour
         bool found = false;
         HookRay[] hookRays = BuildHookRays(forward);
 
-        for (int i = 0; i < hookRays.Length; i++)
+        foreach (var ray in hookRays)
         {
-            HookRay ray = hookRays[i];
             CastHookRay(ray.Origin, ray.Direction, ray.Distance, forward, ref found, ref bestHit, ref bestScore);
         }
 
@@ -238,18 +240,19 @@ public class PlayerController : MonoBehaviour
         return false;
     }
 
-    private void CastHookRay(Vector3 origin, Vector3 direction, float distance, Vector3 forward, ref bool found, ref RaycastHit bestHit, ref float bestScore)
+    private void CastHookRay(Vector3 origin, Vector3 direction, float distance, Vector3 forward, ref bool found,
+        ref RaycastHit bestHit, ref float bestScore)
     {
         if (!TryRaycast(origin, direction, distance, out RaycastHit hit) || !IsValidSurface(hit))
         {
             return;
         }
 
-        Vector3 toHit = hit.point - currentSurface.Position;
+        Vector3 toHit = hit.point - _currentSurface.Position;
         float forwardScore = Mathf.Max(0f, Vector3.Dot(toHit, forward));
         float distanceScore = toHit.sqrMagnitude;
-        float normalScore = Vector3.Angle(currentSurface.Normal, hit.normal) * 0.01f;
-        float transitionScore = Vector3.Angle(currentSurface.Normal, hit.normal) > 20f ? transitionSurfaceBias : 0f;
+        float normalScore = Vector3.Angle(_currentSurface.Normal, hit.normal) * 0.01f;
+        float transitionScore = Vector3.Angle(_currentSurface.Normal, hit.normal) > 20f ? transitionSurfaceBias : 0f;
         float score = distanceScore - forwardScore + normalScore - transitionScore;
 
         if (score < bestScore)
@@ -262,7 +265,7 @@ public class PlayerController : MonoBehaviour
 
     private bool TryLocalSurfaceSearch(out SurfaceHit surface)
     {
-        Vector3 origin = rb.position;
+        Vector3 origin = _rb.position;
         Vector3[] directions =
         {
             -transform.up,
@@ -273,9 +276,10 @@ public class PlayerController : MonoBehaviour
             -transform.right
         };
 
-        for (int i = 0; i < directions.Length; i++)
+        foreach (var direction in directions)
         {
-            if (TryRaycast(origin, directions[i], localSearchRadius + surfaceOffset, out RaycastHit hit) && IsValidSurface(hit))
+            if (TryRaycast(origin, direction, localSearchRadius + surfaceOffset, out RaycastHit hit) &&
+                IsValidSurface(hit))
             {
                 surface = CreateSurfaceHit(hit);
                 return true;
@@ -288,24 +292,24 @@ public class PlayerController : MonoBehaviour
 
     private bool IsValidSurface(RaycastHit hit)
     {
-        if (!hasSurface)
+        if (!_hasSurface)
         {
             return true;
         }
 
-        return Vector3.Angle(currentSurface.Normal, hit.normal) <= maxSurfaceAngleChange;
+        return Vector3.Angle(_currentSurface.Normal, hit.normal) <= maxSurfaceAngleChange;
     }
 
     private bool TryRaycast(Vector3 origin, Vector3 direction, float distance, out RaycastHit hit)
     {
-        RaycastHit[] hits = Physics.RaycastAll(origin, direction, distance, surfaceMask, QueryTriggerInteraction.Ignore);
+        var hits = Physics.RaycastAll(origin, direction, distance, surfaceMask, QueryTriggerInteraction.Ignore);
         System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
 
-        for (int i = 0; i < hits.Length; i++)
+        foreach (var raycastHit in hits)
         {
-            if (!IsOwnCollider(hits[i].collider))
+            if (!IsOwnCollider(raycastHit.collider))
             {
-                hit = hits[i];
+                hit = raycastHit;
                 return true;
             }
         }
@@ -316,9 +320,9 @@ public class PlayerController : MonoBehaviour
 
     private bool IsOwnCollider(Collider hitCollider)
     {
-        for (int i = 0; i < ownColliders.Length; i++)
+        for (int i = 0; i < _ownColliders.Length; i++)
         {
-            if (ownColliders[i] == hitCollider)
+            if (_ownColliders[i] == hitCollider)
             {
                 return true;
             }
@@ -341,14 +345,14 @@ public class PlayerController : MonoBehaviour
         Vector3 tangentialVelocity = Vector3.ProjectOnPlane(velocity, probeSurface.Normal);
         if (tangentialVelocity.sqrMagnitude < 0.0001f)
         {
-            Vector3 transitionDirection = Vector3.ProjectOnPlane(currentSurface.Normal, probeSurface.Normal);
+            Vector3 transitionDirection = Vector3.ProjectOnPlane(_currentSurface.Normal, probeSurface.Normal);
             if (transitionDirection.sqrMagnitude > 0.0001f)
             {
                 tangentialVelocity = transitionDirection.normalized * velocity.magnitude;
             }
         }
 
-        Vector3 movementPosition = rb.position + tangentialVelocity * Time.fixedDeltaTime;
+        Vector3 movementPosition = _rb.position + tangentialVelocity * Time.fixedDeltaTime;
         Vector3 targetPosition = probeSurface.Position + probeSurface.Normal * surfaceOffset;
 
         float normalError = Vector3.Dot(targetPosition - movementPosition, probeSurface.Normal);
@@ -356,7 +360,7 @@ public class PlayerController : MonoBehaviour
         float correction = Mathf.MoveTowards(0f, normalError, maxCorrection);
         Vector3 nextPosition = movementPosition + probeSurface.Normal * correction;
 
-        rb.MovePosition(nextPosition);
+        _rb.MovePosition(nextPosition);
 
         return new SurfaceHit
         {
@@ -367,20 +371,21 @@ public class PlayerController : MonoBehaviour
 
     private void SnapToCurrentSurface()
     {
-        Vector3 targetPosition = currentSurface.Position + currentSurface.Normal * surfaceOffset;
-        Vector3 nextPosition = Vector3.MoveTowards(rb.position, targetPosition, surfaceSnapSpeed * Time.fixedDeltaTime);
-        rb.MovePosition(nextPosition);
+        Vector3 targetPosition = _currentSurface.Position + _currentSurface.Normal * surfaceOffset;
+        Vector3 nextPosition =
+            Vector3.MoveTowards(_rb.position, targetPosition, surfaceSnapSpeed * Time.fixedDeltaTime);
+        _rb.MovePosition(nextPosition);
 
-        currentSurface.Position = nextPosition - currentSurface.Normal * surfaceOffset;
+        _currentSurface.Position = nextPosition - _currentSurface.Normal * surfaceOffset;
     }
 
     private void AlignToSurface(Vector3 surfaceNormal)
     {
-        Quaternion upRotation = Quaternion.FromToRotation(transform.up, surfaceNormal) * rb.rotation;
-        Quaternion yawRotation = Quaternion.AngleAxis(yawInput, surfaceNormal);
+        Quaternion upRotation = Quaternion.FromToRotation(transform.up, surfaceNormal) * _rb.rotation;
+        Quaternion yawRotation = Quaternion.AngleAxis(_yawInput, surfaceNormal);
         Quaternion targetRotation = yawRotation * upRotation;
-        rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime));
-        yawInput = 0f;
+        _rb.MoveRotation(Quaternion.Slerp(_rb.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime));
+        _yawInput = 0f;
     }
 
     private void AlignVisualToSurroundingSurfaces()
@@ -393,45 +398,45 @@ public class PlayerController : MonoBehaviour
         CacheVisualBaseRotation();
 
         Vector3 blendedNormal = SampleSurroundingSurfaceNormal();
-        if (!hasVisualSurfaceNormal)
+        if (!_hasVisualSurfaceNormal)
         {
-            visualSurfaceNormal = blendedNormal;
-            hasVisualSurfaceNormal = true;
+            _visualSurfaceNormal = blendedNormal;
+            _hasVisualSurfaceNormal = true;
         }
         else
         {
             float maxRadiansDelta = visualAlignDegreesPerSecond * Mathf.Deg2Rad * Time.fixedDeltaTime;
-            visualSurfaceNormal = Vector3.RotateTowards(visualSurfaceNormal, blendedNormal, maxRadiansDelta, 0f);
+            _visualSurfaceNormal = Vector3.RotateTowards(_visualSurfaceNormal, blendedNormal, maxRadiansDelta, 0f);
         }
 
         if (visualRoot.parent != null)
         {
-            Vector3 localNormal = visualRoot.parent.InverseTransformDirection(visualSurfaceNormal);
-            Vector3 baseUp = visualBaseLocalRotation * Vector3.up;
-            visualRoot.localRotation = Quaternion.FromToRotation(baseUp, localNormal) * visualBaseLocalRotation;
+            Vector3 localNormal = visualRoot.parent.InverseTransformDirection(_visualSurfaceNormal);
+            Vector3 baseUp = _visualBaseLocalRotation * Vector3.up;
+            visualRoot.localRotation = Quaternion.FromToRotation(baseUp, localNormal) * _visualBaseLocalRotation;
         }
         else
         {
-            Vector3 baseUp = visualBaseWorldRotation * Vector3.up;
-            visualRoot.rotation = Quaternion.FromToRotation(baseUp, visualSurfaceNormal) * visualBaseWorldRotation;
+            Vector3 baseUp = _visualBaseWorldRotation * Vector3.up;
+            visualRoot.rotation = Quaternion.FromToRotation(baseUp, _visualSurfaceNormal) * _visualBaseWorldRotation;
         }
     }
 
     private void CacheVisualBaseRotation()
     {
-        if (hasVisualBaseRotation || visualRoot == null)
+        if (_hasVisualBaseRotation || visualRoot == null)
         {
             return;
         }
 
-        visualBaseLocalRotation = visualRoot.localRotation;
-        visualBaseWorldRotation = visualRoot.rotation;
-        hasVisualBaseRotation = true;
+        _visualBaseLocalRotation = visualRoot.localRotation;
+        _visualBaseWorldRotation = visualRoot.rotation;
+        _hasVisualBaseRotation = true;
     }
 
     private Vector3 SampleSurroundingSurfaceNormal()
     {
-        Vector3 normal = currentSurface.Normal;
+        Vector3 normal = _currentSurface.Normal;
         Vector3 forward = Vector3.ProjectOnPlane(transform.forward, normal);
         if (forward.sqrMagnitude < 0.0001f)
         {
@@ -440,7 +445,7 @@ public class PlayerController : MonoBehaviour
 
         forward.Normalize();
         Vector3 side = Vector3.Cross(normal, forward).normalized;
-        Vector3 origin = rb.position + forward * visualProbeForwardOffset;
+        Vector3 origin = _rb.position + forward * visualProbeForwardOffset;
         Vector3 normalSum = normal;
 
         CastVisualProbe(origin, -normal, ref normalSum);
@@ -466,20 +471,20 @@ public class PlayerController : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
-        if (!Application.isPlaying || !hasSurface)
+        if (!Application.isPlaying || !_hasSurface)
         {
             return;
         }
 
-        Vector3 forward = Vector3.ProjectOnPlane(transform.forward, currentSurface.Normal);
+        Vector3 forward = Vector3.ProjectOnPlane(transform.forward, _currentSurface.Normal);
         if (forward.sqrMagnitude < 0.0001f)
         {
-            forward = Vector3.ProjectOnPlane(transform.up, currentSurface.Normal);
+            forward = Vector3.ProjectOnPlane(transform.up, _currentSurface.Normal);
         }
 
         if (drawSurfacePlanes)
         {
-            DrawSurfacePlane(currentSurface.Position, currentSurface.Normal, currentSurfacePlaneColor);
+            DrawSurfacePlane(_currentSurface.Position, _currentSurface.Normal, currentSurfacePlaneColor);
         }
 
         if (drawHook || drawSurfacePlanes)
@@ -495,20 +500,19 @@ public class PlayerController : MonoBehaviour
 
     private void DrawHookPattern(Vector3 forward)
     {
-        HookRay[] hookRays = BuildHookRays(forward);
-        for (int i = 0; i < hookRays.Length; i++)
+        var hookRays = BuildHookRays(forward);
+        foreach (var ray in hookRays)
         {
-            HookRay ray = hookRays[i];
             DrawHookRay(ray.Origin, ray.Direction, ray.Distance);
         }
     }
 
     private HookRay[] BuildHookRays(Vector3 forward)
     {
-        Vector3 normal = currentSurface.Normal;
+        Vector3 normal = _currentSurface.Normal;
         Vector3 side = Vector3.Cross(normal, forward).normalized;
 
-        HookRay[] rays = new HookRay[9];
+        var rays = new HookRay[9];
         int index = 0;
         AddHookShape(Vector3.zero, forward, normal, ref rays, ref index);
         AddHookShape(side * hookSideOffset, forward, normal, ref rays, ref index);
@@ -518,7 +522,7 @@ public class PlayerController : MonoBehaviour
 
     private void AddHookShape(Vector3 lateralOffset, Vector3 forward, Vector3 normal, ref HookRay[] rays, ref int index)
     {
-        Vector3 start = currentSurface.Position + normal * surfaceOffset + lateralOffset;
+        Vector3 start = _currentSurface.Position + normal * surfaceOffset + lateralOffset;
         Vector3 liftDirection = (forward + normal).normalized;
         Vector3 liftedPoint = start + liftDirection * hookNormalClearance;
         Vector3 forwardPoint = liftedPoint + forward * hookForwardDistance;
@@ -577,9 +581,9 @@ public class PlayerController : MonoBehaviour
 
     private void DrawVisualProbes(Vector3 forward)
     {
-        Vector3 normal = currentSurface.Normal;
+        Vector3 normal = _currentSurface.Normal;
         Vector3 side = Vector3.Cross(normal, forward).normalized;
-        Vector3 origin = rb.position + forward * visualProbeForwardOffset;
+        Vector3 origin = _rb.position + forward * visualProbeForwardOffset;
 
         Gizmos.color = visualProbeColor;
         DrawVisualProbe(origin, -normal);
@@ -601,7 +605,8 @@ public class PlayerController : MonoBehaviour
             Gizmos.DrawRay(origin, direction * visualProbeDistance);
         }
 
-        if (TryRaycast(origin, direction, visualProbeDistance, out RaycastHit hit) && IsValidSurface(hit) && drawSurfacePlanes)
+        if (TryRaycast(origin, direction, visualProbeDistance, out RaycastHit hit) && IsValidSurface(hit) &&
+            drawSurfacePlanes)
         {
             DrawSurfacePlane(hit.point, hit.normal, surfacePlaneColor);
         }

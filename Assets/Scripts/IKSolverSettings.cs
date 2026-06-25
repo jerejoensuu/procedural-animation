@@ -4,129 +4,74 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "IK Solver Settings", menuName = "IK/Solver Settings")]
 public class IKSolverSettings : ScriptableObject
 {
-    [Header("Per-Joint Settings")]
-    [SerializeField] private List<IKSolver.JointSettings> perJointSettings = new List<IKSolver.JointSettings>();
+    [Header("Per-Joint Settings")] [SerializeField]
+    private List<IKSolver.JointSettings> perJointSettings = new();
 
-    [Header("Shape Bias")]
-    [Range(0f, 1f)] [SerializeField] private float solverWeight = 1f;
+    [Header("Shape Bias")] [Range(0f, 1f)] [SerializeField]
+    private float solverWeight = 1f;
+
     [Range(0f, 1f)] [SerializeField] private float restPoseWeight = 0.15f;
     [Range(0f, 1f)] [SerializeField] private float poleWeight = 1f;
 
-    [Header("Foot/Contact Behavior")]
-    [SerializeField] private bool useContact;
+    [Header("Foot/Contact Behavior")] [SerializeField]
+    private bool useContact;
+
     [SerializeField] private LayerMask contactMask = ~0;
     [SerializeField] private Vector3 contactRayLocalDirection = Vector3.down;
     [SerializeField] private float contactRayDistance = 1f;
     [SerializeField] private float contactOffset = 0.02f;
     [Range(0f, 1f)] [SerializeField] private float contactWeight = 1f;
 
-    [Header("Advanced Solver")]
-    [SerializeField] private IKSolver.SolveTiming solveTiming = IKSolver.SolveTiming.LateUpdate;
+    [Header("Advanced Solver")] [SerializeField]
+    private IKSolver.SolveTiming solveTiming = IKSolver.SolveTiming.LateUpdate;
+
     [Min(1)] [SerializeField] private int iterations = 10;
     [Min(0.00001f)] [SerializeField] private float tolerance = 0.001f;
     [SerializeField] private bool initializeOnStart = true;
 
-    [Header("Debug")]
-    [SerializeField] private bool drawGizmos = true;
+    [Header("Debug")] [SerializeField] private bool drawGizmos = true;
     [SerializeField] private Color chainColor = Color.green;
     [SerializeField] private Color targetColor = Color.cyan;
     [SerializeField] private Color poleColor = Color.yellow;
     [SerializeField] private float gizmoSize = 0.04f;
 
-    public IReadOnlyList<IKSolver.JointSettings> PerJointSettings
-    {
-        get { return perJointSettings; }
-    }
+    public IReadOnlyList<IKSolver.JointSettings> PerJointSettings => perJointSettings;
 
-    public float SolverWeight
-    {
-        get { return solverWeight; }
-    }
+    public float SolverWeight => solverWeight;
 
-    public float RestPoseWeight
-    {
-        get { return restPoseWeight; }
-    }
+    public float RestPoseWeight => restPoseWeight;
 
-    public float PoleWeight
-    {
-        get { return poleWeight; }
-    }
+    public float PoleWeight => poleWeight;
 
-    public bool UseContact
-    {
-        get { return useContact; }
-    }
+    public bool UseContact => useContact;
 
-    public LayerMask ContactMask
-    {
-        get { return contactMask; }
-    }
+    public LayerMask ContactMask => contactMask;
 
-    public Vector3 ContactRayLocalDirection
-    {
-        get { return contactRayLocalDirection; }
-    }
+    public Vector3 ContactRayLocalDirection => contactRayLocalDirection;
 
-    public float ContactRayDistance
-    {
-        get { return contactRayDistance; }
-    }
+    public float ContactRayDistance => contactRayDistance;
 
-    public float ContactOffset
-    {
-        get { return contactOffset; }
-    }
+    public float ContactOffset => contactOffset;
 
-    public float ContactWeight
-    {
-        get { return contactWeight; }
-    }
+    public float ContactWeight => contactWeight;
 
-    public IKSolver.SolveTiming SolveTiming
-    {
-        get { return solveTiming; }
-    }
+    public IKSolver.SolveTiming SolveTiming => solveTiming;
 
-    public int Iterations
-    {
-        get { return iterations; }
-    }
+    public int Iterations => iterations;
 
-    public float Tolerance
-    {
-        get { return tolerance; }
-    }
+    public float Tolerance => tolerance;
 
-    public bool InitializeOnStart
-    {
-        get { return initializeOnStart; }
-    }
+    public bool InitializeOnStart => initializeOnStart;
 
-    public bool DrawGizmos
-    {
-        get { return drawGizmos; }
-    }
+    public bool DrawGizmos => drawGizmos;
 
-    public Color ChainColor
-    {
-        get { return chainColor; }
-    }
+    public Color ChainColor => chainColor;
 
-    public Color TargetColor
-    {
-        get { return targetColor; }
-    }
+    public Color TargetColor => targetColor;
 
-    public Color PoleColor
-    {
-        get { return poleColor; }
-    }
+    public Color PoleColor => poleColor;
 
-    public float GizmoSize
-    {
-        get { return gizmoSize; }
-    }
+    public float GizmoSize => gizmoSize;
 
     private void OnValidate()
     {
@@ -171,9 +116,9 @@ public class IKSolverSettings : ScriptableObject
         perJointSettings.Clear();
         if (sourcePerJointSettings != null)
         {
-            for (int i = 0; i < sourcePerJointSettings.Count; i++)
+            foreach (var jointSettings in sourcePerJointSettings)
             {
-                perJointSettings.Add(CloneJointSettings(sourcePerJointSettings[i]));
+                perJointSettings.Add(CloneJointSettings(jointSettings));
             }
         }
 
@@ -223,10 +168,7 @@ public class IKSolverSettings : ScriptableObject
     {
         for (int i = 0; i < perJointSettings.Count; i++)
         {
-            if (perJointSettings[i] == null)
-            {
-                perJointSettings[i] = new IKSolver.JointSettings();
-            }
+            perJointSettings[i] ??= new IKSolver.JointSettings();
         }
     }
 }
