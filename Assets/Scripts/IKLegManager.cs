@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 
 [DisallowMultipleComponent]
 [DefaultExecutionOrder(-100)]
@@ -21,12 +22,14 @@ public class IKLegManager : MonoBehaviour
         [HideInInspector] public Vector3 stepStartPosition;
         [HideInInspector] public Vector3 stepEndPosition;
         [HideInInspector] public Vector3 stepHorizontalPosition;
+        [HideInInspector] public float stepElevation;
         [HideInInspector] public float stepProgress;
         [HideInInspector] public bool isStepping;
     }
 
     [Header("Input")]
     [SerializeField] private InputActionReference moveAction;
+    [SerializeField] private InputActionReference rotateAction;
 
     [Header("Body")]
     [SerializeField] private Transform centerOfMass;
@@ -35,16 +38,25 @@ public class IKLegManager : MonoBehaviour
     [SerializeField] private bool autoCreateMissingTargets = true;
     [SerializeField] private bool keepPlantedTargetsInWorld = true;
 
+    [Header("Body Orientation")]
+    [SerializeField] private bool orientBodyToLegEnds = true;
+    [SerializeField] private float bodyOrientationSmoothing = 12f;
+    [SerializeField] private float minimumBodyOrientationFootSpread = 0.01f;
+
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 5f;
+    [SerializeField] private float turnSpeed = 180f;
 
     [Header("Legs")]
+    [SerializeField] private IKSolverSettings solverSettingsProfile;
+    [SerializeField] private int copySettingsFromLegIndex;
     [SerializeField] private List<ManagedLeg> legs = new List<ManagedLeg>();
 
     [Header("Step")]
     [SerializeField] private float stepHeight = 0.35f;
     [SerializeField] private float maxReach = 1.25f;
     [SerializeField] private float stepLength = 0.6f;
+    [SerializeField] private float maxElevationError = 0.15f;
     [SerializeField] private float stepDuration = 0.18f;
     [SerializeField] private AnimationCurve stepHeightCurve = new AnimationCurve(
         new Keyframe(0f, 0f),
@@ -70,6 +82,9 @@ public class IKLegManager : MonoBehaviour
     [SerializeField] private float velocitySmoothing = 12f;
     [SerializeField] private float velocityPredictionWeight = 1f;
     [SerializeField] private float minimumMoveSpeedForPrediction = 0.05f;
+    [SerializeField] private float angularPredictionTime = 0.15f;
+    [SerializeField] private float maxFootTwistAngle = 25f;
+    [SerializeField] private float minimumTurnSpeedForPrediction = 5f;
 
     [Header("Debug")]
     [SerializeField] private bool drawGizmos = true;
@@ -85,6 +100,7 @@ public class IKLegManager : MonoBehaviour
     private Vector3 smoothedVelocity;
     private Vector3 supportCenter;
     private Vector3 desiredSupportCenter;
+    private float currentTurnDegreesPerSecond;
     private int activeStepGroup;
     private bool initialized;
     private Rigidbody bodyRigidbody;
@@ -143,11 +159,13 @@ public class IKLegManager : MonoBehaviour
     private void OnEnable()
     {
         moveAction?.action?.Enable();
+        rotateAction?.action?.Enable();
     }
 
     private void OnDisable()
     {
         moveAction?.action?.Disable();
+        rotateAction?.action?.Disable();
     }
 
     private void OnValidate()
@@ -155,6 +173,7 @@ public class IKLegManager : MonoBehaviour
         stepHeight = Mathf.Max(0f, stepHeight);
         maxReach = Mathf.Max(0.01f, maxReach);
         stepLength = Mathf.Max(0f, stepLength);
+        maxElevationError = Mathf.Max(0f, maxElevationError);
         stepDuration = Mathf.Max(0.01f, stepDuration);
         centerOfMassLeadTime = Mathf.Max(0f, centerOfMassLeadTime);
         maxSupportCenterError = Mathf.Max(0.01f, maxSupportCenterError);
@@ -162,12 +181,59 @@ public class IKLegManager : MonoBehaviour
         groundProbeDistance = Mathf.Max(0f, groundProbeDistance);
         velocitySmoothing = Mathf.Max(0f, velocitySmoothing);
         velocityPredictionWeight = Mathf.Max(0f, velocityPredictionWeight);
+        angularPredictionTime = Mathf.Max(0f, angularPredictionTime);
+        maxFootTwistAngle = Mathf.Max(0f, maxFootTwistAngle);
+        minimumTurnSpeedForPrediction = Mathf.Max(0f, minimumTurnSpeedForPrediction);
         moveSpeed = Mathf.Max(0f, moveSpeed);
+        turnSpeed = Mathf.Max(0f, turnSpeed);
+        bodyOrientationSmoothing = Mathf.Max(0f, bodyOrientationSmoothing);
+        minimumBodyOrientationFootSpread = Mathf.Max(0.0001f, minimumBodyOrientationFootSpread);
+        copySettingsFromLegIndex = Mathf.Max(0, copySettingsFromLegIndex);
     }
 
     private void FixedUpdate()
     {
-        MoveBodyHorizontally();
+        RotateBody();
+        MoveBody();
+    }
+
+    private void RotateBody()
+    {
+        float rotateInput = ReadRotateInput();
+        currentTurnDegreesPerSecond = rotateInput * turnSpeed;
+        if (Mathf.Abs(rotateInput) < 0.0001f)
+        {
+            return;
+        }
+
+        Transform body = Body;
+        Quaternion deltaRotation = Quaternion.AngleAxis(currentTurnDegreesPerSecond * Time.fixedDeltaTime, body.up);
+        Quaternion rotation = deltaRotation * body.rotation;
+
+        if (bodyRigidbody != null)
+        {
+            bodyRigidbody.MoveRotation(rotation);
+        }
+        else
+        {
+            body.rotation = rotation;
+        }
+    }
+
+    private float ReadRotateInput()
+    {
+        if (rotateAction == null || rotateAction.action == null)
+        {
+            return 0f;
+        }
+
+        InputAction action = rotateAction.action;
+        if (action.activeControl is Vector2Control || action.expectedControlType == "Vector2" || action.expectedControlType == "Stick")
+        {
+            return Mathf.Clamp(action.ReadValue<Vector2>().x, -1f, 1f);
+        }
+
+        return Mathf.Clamp(action.ReadValue<float>(), -1f, 1f);
     }
 
     private void LateUpdate()
@@ -180,10 +246,11 @@ public class IKLegManager : MonoBehaviour
         UpdateCenterOfMass();
         UpdateSteppingLegs();
         UpdateSupportCenters();
+        UpdateBodyOrientation();
         TryStartSteps();
     }
 
-    private void MoveBodyHorizontally()
+    private void MoveBody()
     {
         if (moveAction == null || moveAction.action == null)
         {
@@ -196,9 +263,8 @@ public class IKLegManager : MonoBehaviour
             return;
         }
 
-        Vector3 up = -GetGravityDirection();
-        Vector3 right = Vector3.ProjectOnPlane(Body.right, up);
-        Vector3 forward = Vector3.ProjectOnPlane(Body.forward, up);
+        Vector3 right = Body.right;
+        Vector3 forward = Body.forward;
         Vector3 moveDirection = right * moveInput.x + forward * moveInput.y;
         if (moveDirection.sqrMagnitude < 0.0001f)
         {
@@ -234,6 +300,11 @@ public class IKLegManager : MonoBehaviour
                 continue;
             }
 
+            if (solverSettingsProfile != null && leg.solver != null)
+            {
+                leg.solver.ApplySettings(solverSettingsProfile);
+            }
+
             if (string.IsNullOrEmpty(leg.name))
             {
                 leg.name = "Leg " + i;
@@ -261,6 +332,11 @@ public class IKLegManager : MonoBehaviour
                 leg.solver.EffectorTarget = leg.target;
             }
 
+            if (leg.solver != null && leg.solver.OrientationReference == null)
+            {
+                leg.solver.OrientationReference = Body;
+            }
+
             Vector3 startPosition = leg.target != null ? leg.target.position : GetLegEndPosition(leg);
             if (TryProjectToGround(startPosition, out Vector3 groundedPosition))
             {
@@ -276,6 +352,7 @@ public class IKLegManager : MonoBehaviour
             leg.stepStartPosition = startPosition;
             leg.stepEndPosition = startPosition;
             leg.stepHorizontalPosition = GetHorizontalPosition(startPosition);
+            leg.stepElevation = GetElevation(startPosition);
             leg.stepProgress = 1f;
             leg.isStepping = false;
 
@@ -287,6 +364,72 @@ public class IKLegManager : MonoBehaviour
 
         activeStepGroup = GetFirstStepGroup();
         initialized = true;
+    }
+
+    [ContextMenu("Apply Solver Settings To Legs")]
+    public void ApplySolverSettingsToLegs()
+    {
+        if (solverSettingsProfile == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < legs.Count; i++)
+        {
+            ManagedLeg leg = legs[i];
+            if (leg == null || leg.solver == null)
+            {
+                continue;
+            }
+
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                UnityEditor.Undo.RecordObject(leg.solver, "Apply IK Solver Settings");
+            }
+#endif
+
+            leg.solver.ApplySettings(solverSettingsProfile);
+
+#if UNITY_EDITOR
+            if (!Application.isPlaying)
+            {
+                UnityEditor.EditorUtility.SetDirty(leg.solver);
+            }
+#endif
+        }
+    }
+
+    [ContextMenu("Copy Leg Solver Settings To Profile")]
+    public void CopyLegSolverSettingsToProfile()
+    {
+        if (solverSettingsProfile == null || legs.Count == 0)
+        {
+            return;
+        }
+
+        int index = Mathf.Clamp(copySettingsFromLegIndex, 0, legs.Count - 1);
+        ManagedLeg leg = legs[index];
+        if (leg == null || leg.solver == null)
+        {
+            return;
+        }
+
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            UnityEditor.Undo.RecordObject(solverSettingsProfile, "Copy IK Solver Settings To Profile");
+        }
+#endif
+
+        solverSettingsProfile.CopyFromSolver(leg.solver);
+
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            UnityEditor.EditorUtility.SetDirty(solverSettingsProfile);
+        }
+#endif
     }
 
     private void UpdateCenterOfMass()
@@ -325,6 +468,144 @@ public class IKLegManager : MonoBehaviour
         desiredSupportCenter = ProjectPointToPlane(predictedCenter, supportCenter, up);
     }
 
+    private void UpdateBodyOrientation()
+    {
+        if (!orientBodyToLegEnds || !TryGetLegEndAverageNormal(out Vector3 targetUp))
+        {
+            return;
+        }
+
+        Transform body = Body;
+        Vector3 forward = Vector3.ProjectOnPlane(body.forward, targetUp);
+        if (forward.sqrMagnitude <= 0.000001f)
+        {
+            forward = Vector3.ProjectOnPlane(body.up, targetUp);
+        }
+
+        if (forward.sqrMagnitude <= 0.000001f)
+        {
+            return;
+        }
+
+        Quaternion targetRotation = Quaternion.LookRotation(forward.normalized, targetUp);
+        float blend = bodyOrientationSmoothing <= 0f ? 1f : 1f - Mathf.Exp(-bodyOrientationSmoothing * Time.deltaTime);
+        Quaternion rotation = Quaternion.Slerp(body.rotation, targetRotation, blend);
+
+        if (bodyRigidbody != null)
+        {
+            bodyRigidbody.MoveRotation(rotation);
+        }
+        else
+        {
+            body.rotation = rotation;
+        }
+    }
+
+    private bool TryGetLegEndAverageNormal(out Vector3 averageNormal)
+    {
+        const float sideThreshold = 0.0001f;
+
+        Vector3 leftSum = Vector3.zero;
+        Vector3 rightSum = Vector3.zero;
+        Vector3 backSum = Vector3.zero;
+        Vector3 frontSum = Vector3.zero;
+        int leftCount = 0;
+        int rightCount = 0;
+        int backCount = 0;
+        int frontCount = 0;
+
+        for (int i = 0; i < legs.Count; i++)
+        {
+            ManagedLeg leg = legs[i];
+            if (!IsLegUsable(leg))
+            {
+                continue;
+            }
+
+            Vector3 endPosition = GetCurrentLegEndPosition(leg);
+            Vector3 bodyOffset = GetLegBodyOffset(leg);
+
+            if (bodyOffset.x < -sideThreshold)
+            {
+                leftSum += endPosition;
+                leftCount++;
+            }
+            else if (bodyOffset.x > sideThreshold)
+            {
+                rightSum += endPosition;
+                rightCount++;
+            }
+
+            if (bodyOffset.z < -sideThreshold)
+            {
+                backSum += endPosition;
+                backCount++;
+            }
+            else if (bodyOffset.z > sideThreshold)
+            {
+                frontSum += endPosition;
+                frontCount++;
+            }
+        }
+
+        bool hasRightAxis = leftCount > 0 && rightCount > 0;
+        bool hasForwardAxis = backCount > 0 && frontCount > 0;
+
+        if (!hasRightAxis && !hasForwardAxis)
+        {
+            averageNormal = -GetGravityDirection();
+            return false;
+        }
+
+        Transform body = Body;
+        Vector3 rightAxis = hasRightAxis ? rightSum / rightCount - leftSum / leftCount : Vector3.ProjectOnPlane(body.right, -GetGravityDirection());
+        Vector3 forwardAxis = hasForwardAxis ? frontSum / frontCount - backSum / backCount : Vector3.ProjectOnPlane(body.forward, -GetGravityDirection());
+
+        if (rightAxis.sqrMagnitude <= minimumBodyOrientationFootSpread * minimumBodyOrientationFootSpread ||
+            forwardAxis.sqrMagnitude <= minimumBodyOrientationFootSpread * minimumBodyOrientationFootSpread)
+        {
+            averageNormal = -GetGravityDirection();
+            return false;
+        }
+
+        Vector3 normal = Vector3.Cross(forwardAxis, rightAxis);
+
+        if (normal.sqrMagnitude <= minimumBodyOrientationFootSpread * minimumBodyOrientationFootSpread)
+        {
+            averageNormal = -GetGravityDirection();
+            return false;
+        }
+
+        averageNormal = normal.normalized;
+        Vector3 gravityUp = -GetGravityDirection();
+        if (Vector3.Dot(averageNormal, gravityUp) < 0f)
+        {
+            averageNormal = -averageNormal;
+        }
+
+        return true;
+    }
+
+    private Vector3 GetLegBodyOffset(ManagedLeg leg)
+    {
+        if (leg.localHomeOffset.sqrMagnitude > 0.000001f)
+        {
+            return leg.localHomeOffset;
+        }
+
+        return Body.InverseTransformPoint(GetHomePosition(leg));
+    }
+
+    private Vector3 GetCurrentLegEndPosition(ManagedLeg leg)
+    {
+        if (leg.isStepping)
+        {
+            return leg.target.position;
+        }
+
+        return leg.plantedPosition;
+    }
+
     private void UpdateSteppingLegs()
     {
         for (int i = 0; i < legs.Count; i++)
@@ -347,20 +628,24 @@ public class IKLegManager : MonoBehaviour
 
             Vector3 liveLanding = GetDesiredFootPosition(leg);
             Vector3 liveLandingHorizontal = GetHorizontalPosition(liveLanding);
+            float liveLandingElevation = GetElevation(liveLanding);
             float remainingSwingTime = Mathf.Max((1f - leg.stepProgress) * stepDuration, Time.deltaTime);
             Vector3 requiredVelocity = (liveLandingHorizontal - leg.stepHorizontalPosition) / remainingSwingTime;
+            float requiredElevationVelocity = (liveLandingElevation - leg.stepElevation) / remainingSwingTime;
 
             leg.stepEndPosition = liveLanding;
             leg.stepProgress = Mathf.Clamp01(leg.stepProgress + Time.deltaTime / stepDuration);
             leg.stepHorizontalPosition += requiredVelocity * Time.deltaTime;
+            leg.stepElevation += requiredElevationVelocity * Time.deltaTime;
 
             if (leg.stepProgress >= 1f)
             {
                 leg.stepHorizontalPosition = liveLandingHorizontal;
+                leg.stepElevation = liveLandingElevation;
             }
 
             float height = stepHeightCurve != null ? stepHeightCurve.Evaluate(leg.stepProgress) * stepHeight : Mathf.Sin(leg.stepProgress * Mathf.PI) * stepHeight;
-            Vector3 position = BuildPositionFromHorizontal(leg.stepHorizontalPosition, liveLanding) - GetGravityDirection() * height;
+            Vector3 position = BuildPositionFromHorizontalAndElevation(leg.stepHorizontalPosition, leg.stepElevation) - GetGravityDirection() * height;
 
             leg.target.position = position;
 
@@ -382,16 +667,20 @@ public class IKLegManager : MonoBehaviour
 
         float supportError = GetPlanarDistance(supportCenter, desiredSupportCenter);
         bool anyLegPastMaxReach = IsAnyLegPastMaxReach();
+        bool anyLegPastMaxElevation = IsAnyLegPastMaxElevation();
+        bool anyLegPastMaxTwist = IsAnyLegPastMaxTwist();
         bool isMoving = IsMovingOnGroundPlane();
+        bool isTurning = IsTurning();
         float effectiveSupportError = Mathf.Max(maxSupportCenterError, stepLength);
         bool supportNeedsStep = (isMoving || allowIdleBalanceSteps) && supportError >= effectiveSupportError;
+        bool rotationNeedsStep = isTurning && anyLegPastMaxTwist;
 
-        if (!supportNeedsStep && !anyLegPastMaxReach)
+        if (!supportNeedsStep && !rotationNeedsStep && !anyLegPastMaxReach && !anyLegPastMaxElevation)
         {
             return;
         }
 
-        int groupToStep = supportNeedsStep ? FindBestSupportGroup() : FindMostOverreachedGroup();
+        int groupToStep = supportNeedsStep ? FindBestSupportGroup() : rotationNeedsStep ? FindMostTwistedGroup() : anyLegPastMaxReach ? FindMostOverreachedGroup() : FindMostElevatedGroup();
         if (!HasUsableLegInGroup(groupToStep))
         {
             return;
@@ -431,13 +720,14 @@ public class IKLegManager : MonoBehaviour
         leg.target.position = leg.stepStartPosition;
         leg.stepEndPosition = desiredPosition;
         leg.stepHorizontalPosition = GetHorizontalPosition(leg.stepStartPosition);
+        leg.stepElevation = GetElevation(leg.stepStartPosition);
         leg.stepProgress = 0f;
         leg.isStepping = true;
     }
 
     private Vector3 GetDesiredFootPosition(ManagedLeg leg)
     {
-        Vector3 home = GetHomePosition(leg);
+        Vector3 home = GetPredictedHomePosition(leg);
         Vector3 predictedOffset = GetPlanarVelocityDirection() * stepLength * Mathf.Max(1f, velocityPredictionWeight);
         Vector3 desired = home + predictedOffset;
 
@@ -447,6 +737,19 @@ public class IKLegManager : MonoBehaviour
         }
 
         return desired;
+    }
+
+    private Vector3 GetPredictedHomePosition(ManagedLeg leg)
+    {
+        Vector3 home = GetHomePosition(leg);
+        if (!IsTurning())
+        {
+            return home;
+        }
+
+        Vector3 pivot = Center.position;
+        Quaternion predictedRotation = Quaternion.AngleAxis(currentTurnDegreesPerSecond * angularPredictionTime, Body.up);
+        return pivot + predictedRotation * (home - pivot);
     }
 
     private Vector3 GetHomePosition(ManagedLeg leg)
@@ -504,6 +807,36 @@ public class IKLegManager : MonoBehaviour
         return Mathf.Max(homeReach, desiredReach, 0f);
     }
 
+    private float GetElevationError(ManagedLeg leg, Vector3 desiredPosition)
+    {
+        return Mathf.Abs(GetElevation(leg.plantedPosition) - GetElevation(desiredPosition));
+    }
+
+    private bool IsPastMaxElevation(ManagedLeg leg, Vector3 desiredPosition)
+    {
+        return maxElevationError > 0f && GetElevationError(leg, desiredPosition) > maxElevationError;
+    }
+
+    private float GetTwistAngle(ManagedLeg leg)
+    {
+        Vector3 axis = Body.up;
+        Vector3 pivot = Center.position;
+        Vector3 plantedOffset = Vector3.ProjectOnPlane(leg.plantedPosition - pivot, axis);
+        Vector3 homeOffset = Vector3.ProjectOnPlane(GetHomePosition(leg) - pivot, axis);
+
+        if (plantedOffset.sqrMagnitude <= 0.000001f || homeOffset.sqrMagnitude <= 0.000001f)
+        {
+            return 0f;
+        }
+
+        return Mathf.Abs(Vector3.SignedAngle(plantedOffset, homeOffset, axis));
+    }
+
+    private bool IsPastMaxTwist(ManagedLeg leg)
+    {
+        return maxFootTwistAngle > 0f && GetTwistAngle(leg) > maxFootTwistAngle;
+    }
+
     private bool IsAnyLegInGroupPastMaxReach(int stepGroup)
     {
         for (int i = 0; i < legs.Count; i++)
@@ -534,6 +867,44 @@ public class IKLegManager : MonoBehaviour
             }
 
             if (IsPastMaxReach(leg, GetDesiredFootPosition(leg)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsAnyLegPastMaxElevation()
+    {
+        for (int i = 0; i < legs.Count; i++)
+        {
+            ManagedLeg leg = legs[i];
+            if (!IsLegUsable(leg) || leg.isStepping)
+            {
+                continue;
+            }
+
+            if (IsPastMaxElevation(leg, GetDesiredFootPosition(leg)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool IsAnyLegPastMaxTwist()
+    {
+        for (int i = 0; i < legs.Count; i++)
+        {
+            ManagedLeg leg = legs[i];
+            if (!IsLegUsable(leg) || leg.isStepping)
+            {
+                continue;
+            }
+
+            if (IsPastMaxTwist(leg))
             {
                 return true;
             }
@@ -674,6 +1045,58 @@ public class IKLegManager : MonoBehaviour
         return found ? bestGroup : activeStepGroup;
     }
 
+    private int FindMostElevatedGroup()
+    {
+        bool found = false;
+        int bestGroup = activeStepGroup;
+        float bestElevationError = 0f;
+
+        for (int i = 0; i < legs.Count; i++)
+        {
+            ManagedLeg leg = legs[i];
+            if (!IsLegUsable(leg) || leg.isStepping)
+            {
+                continue;
+            }
+
+            float elevationError = GetElevationError(leg, GetDesiredFootPosition(leg));
+            if (!found || elevationError > bestElevationError)
+            {
+                bestElevationError = elevationError;
+                bestGroup = leg.stepGroup;
+                found = true;
+            }
+        }
+
+        return found ? bestGroup : activeStepGroup;
+    }
+
+    private int FindMostTwistedGroup()
+    {
+        bool found = false;
+        int bestGroup = activeStepGroup;
+        float bestTwist = 0f;
+
+        for (int i = 0; i < legs.Count; i++)
+        {
+            ManagedLeg leg = legs[i];
+            if (!IsLegUsable(leg) || leg.isStepping)
+            {
+                continue;
+            }
+
+            float twist = GetTwistAngle(leg);
+            if (!found || twist > bestTwist)
+            {
+                bestTwist = twist;
+                bestGroup = leg.stepGroup;
+                found = true;
+            }
+        }
+
+        return found ? bestGroup : activeStepGroup;
+    }
+
     private Vector3 GetSimulatedSupportCenterAfterGroupStep(int stepGroup)
     {
         Vector3 sum = Vector3.zero;
@@ -729,6 +1152,11 @@ public class IKLegManager : MonoBehaviour
         return planarVelocity.magnitude >= minimumMoveSpeedForPrediction;
     }
 
+    private bool IsTurning()
+    {
+        return Mathf.Abs(currentTurnDegreesPerSecond) >= minimumTurnSpeedForPrediction;
+    }
+
     private float GetPlanarDistance(Vector3 a, Vector3 b)
     {
         Vector3 up = -GetGravityDirection();
@@ -740,10 +1168,15 @@ public class IKLegManager : MonoBehaviour
         return Vector3.ProjectOnPlane(position, -GetGravityDirection());
     }
 
-    private Vector3 BuildPositionFromHorizontal(Vector3 horizontalPosition, Vector3 heightReference)
+    private Vector3 BuildPositionFromHorizontalAndElevation(Vector3 horizontalPosition, float elevation)
     {
         Vector3 up = -GetGravityDirection();
-        return horizontalPosition + up * Vector3.Dot(heightReference, up);
+        return horizontalPosition + up * elevation;
+    }
+
+    private float GetElevation(Vector3 position)
+    {
+        return Vector3.Dot(position, -GetGravityDirection());
     }
 
     private static Vector3 ProjectPointToPlane(Vector3 point, Vector3 planePoint, Vector3 planeNormal)

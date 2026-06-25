@@ -1,0 +1,71 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 90e85be7232ccb2448f2d797613ccfec, type: 3}
+  m_Name: IK Solver Settings
+  m_EditorClassIdentifier: Assembly-CSharp::IKSolverSettings
+  perJointSettings:
+  - constraintType: 0
+    axis: 2
+    min: -180
+    max: 180
+    xLimits: {x: -180, y: 180}
+    yLimits: {x: -180, y: 180}
+    zLimits: {x: -180, y: 180}
+    preferredAngle: 0
+    stiffness: 0
+  - constraintType: 1
+    axis: 0
+    min: -180
+    max: 180
+    xLimits: {x: -90, y: 90}
+    yLimits: {x: -90, y: 90}
+    zLimits: {x: -90, y: 90}
+    preferredAngle: 0
+    stiffness: 0
+  - constraintType: 1
+    axis: 0
+    min: -180
+    max: 180
+    xLimits: {x: -90, y: 90}
+    yLimits: {x: -90, y: 90}
+    zLimits: {x: -90, y: 90}
+    preferredAngle: 0
+    stiffness: 0
+  - constraintType: 0
+    axis: 2
+    min: -90
+    max: 90
+    xLimits: {x: -90, y: 90}
+    yLimits: {x: -90, y: 90}
+    zLimits: {x: -90, y: 90}
+    preferredAngle: 0
+    stiffness: 0
+  solverWeight: 1
+  restPoseWeight: 0.15
+  poleWeight: 1
+  useContact: 0
+  contactMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  contactRayLocalDirection: {x: 0, y: -1, z: 0}
+  contactRayDistance: 1
+  contactOffset: 0.02
+  contactWeight: 1
+  solveTiming: 1
+  iterations: 10
+  tolerance: 0.001
+  initializeOnStart: 1
+  drawGizmos: 1
+  chainColor: {r: 0, g: 1, b: 0, a: 1}
+  targetColor: {r: 0, g: 1, b: 1, a: 1}
+  poleColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  gizmoSize: 0.04

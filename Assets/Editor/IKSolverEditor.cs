@@ -5,6 +5,8 @@ using UnityEngine;
 [CustomEditor(typeof(IKSolver))]
 public class IKSolverEditor : UnityEditor.Editor
 {
+    private SerializedProperty settingsProfile;
+    private SerializedProperty applySettingsProfileOnValidate;
     private SerializedProperty root;
     private SerializedProperty endEffector;
     private SerializedProperty orderedJoints;
@@ -31,12 +33,17 @@ public class IKSolverEditor : UnityEditor.Editor
     private SerializedProperty chainColor;
     private SerializedProperty targetColor;
     private SerializedProperty poleColor;
+    private SerializedProperty hingeColor;
+    private SerializedProperty ballSocketColor;
+    private SerializedProperty lockedColor;
     private SerializedProperty gizmoSize;
 
     private ReorderableList jointsList;
 
     private void OnEnable()
     {
+        settingsProfile = serializedObject.FindProperty("settingsProfile");
+        applySettingsProfileOnValidate = serializedObject.FindProperty("applySettingsProfileOnValidate");
         root = serializedObject.FindProperty("root");
         endEffector = serializedObject.FindProperty("endEffector");
         orderedJoints = serializedObject.FindProperty("orderedJoints");
@@ -63,6 +70,9 @@ public class IKSolverEditor : UnityEditor.Editor
         chainColor = serializedObject.FindProperty("chainColor");
         targetColor = serializedObject.FindProperty("targetColor");
         poleColor = serializedObject.FindProperty("poleColor");
+        hingeColor = serializedObject.FindProperty("hingeColor");
+        ballSocketColor = serializedObject.FindProperty("ballSocketColor");
+        lockedColor = serializedObject.FindProperty("lockedColor");
         gizmoSize = serializedObject.FindProperty("gizmoSize");
 
         jointsList = new ReorderableList(serializedObject, orderedJoints, true, true, true, true);
@@ -75,6 +85,7 @@ public class IKSolverEditor : UnityEditor.Editor
     {
         serializedObject.Update();
 
+        DrawSharedSettings();
         DrawChain();
         DrawTargets();
         DrawJointSettings();
@@ -84,6 +95,50 @@ public class IKSolverEditor : UnityEditor.Editor
         DrawDebug();
 
         serializedObject.ApplyModifiedProperties();
+    }
+
+    private void DrawSharedSettings()
+    {
+        EditorGUILayout.LabelField("Shared Settings", EditorStyles.boldLabel);
+        EditorGUILayout.PropertyField(settingsProfile);
+        EditorGUILayout.PropertyField(applySettingsProfileOnValidate);
+
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            using (new EditorGUI.DisabledScope(settingsProfile.objectReferenceValue == null))
+            {
+                if (GUILayout.Button("Apply Profile"))
+                {
+                    serializedObject.ApplyModifiedProperties();
+                    foreach (Object currentTarget in targets)
+                    {
+                        Undo.RecordObject(currentTarget, "Apply IK Solver Settings Profile");
+                        ((IKSolver)currentTarget).ApplySettingsProfile();
+                        EditorUtility.SetDirty(currentTarget);
+                    }
+                    serializedObject.Update();
+                }
+
+                if (GUILayout.Button("Copy To Profile"))
+                {
+                    serializedObject.ApplyModifiedProperties();
+                    foreach (Object currentTarget in targets)
+                    {
+                        IKSolver solver = (IKSolver)currentTarget;
+                        if (solver.SettingsProfile == null)
+                        {
+                            continue;
+                        }
+
+                        Undo.RecordObject(solver.SettingsProfile, "Copy IK Solver Settings To Profile");
+                        solver.CopySettingsToProfile();
+                    }
+                    serializedObject.Update();
+                }
+            }
+        }
+
+        EditorGUILayout.Space(6f);
     }
 
     private void DrawChain()
@@ -158,21 +213,54 @@ public class IKSolverEditor : UnityEditor.Editor
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.LabelField(label, EditorStyles.boldLabel);
-                EditorGUILayout.PropertyField(settings.FindPropertyRelative("constraintType"));
-                EditorGUILayout.PropertyField(settings.FindPropertyRelative("axis"));
+                SerializedProperty constraintType = settings.FindPropertyRelative("constraintType");
+                EditorGUILayout.PropertyField(constraintType);
 
-                using (new EditorGUILayout.HorizontalScope())
+                IKSolver.JointConstraintType selectedType = (IKSolver.JointConstraintType)constraintType.enumValueIndex;
+                if (selectedType == IKSolver.JointConstraintType.Hinge)
                 {
-                    EditorGUILayout.PropertyField(settings.FindPropertyRelative("min"));
-                    EditorGUILayout.PropertyField(settings.FindPropertyRelative("max"));
+                    EditorGUILayout.PropertyField(settings.FindPropertyRelative("axis"));
+
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        EditorGUILayout.PropertyField(settings.FindPropertyRelative("min"));
+                        EditorGUILayout.PropertyField(settings.FindPropertyRelative("max"));
+                    }
+
+                    EditorGUILayout.PropertyField(settings.FindPropertyRelative("preferredAngle"));
+                }
+                else if (selectedType == IKSolver.JointConstraintType.BallSocket)
+                {
+                    DrawLimit(settings.FindPropertyRelative("xLimits"), "X Limits");
+                    DrawLimit(settings.FindPropertyRelative("yLimits"), "Y Limits");
+                    DrawLimit(settings.FindPropertyRelative("zLimits"), "Z Limits");
+                }
+                else if (selectedType == IKSolver.JointConstraintType.Free)
+                {
+                    EditorGUILayout.HelpBox("No rotation limits are applied.", MessageType.None);
+                }
+                else if (selectedType == IKSolver.JointConstraintType.Locked)
+                {
+                    EditorGUILayout.HelpBox("Joint rotation is held at the captured rest pose.", MessageType.None);
                 }
 
-                EditorGUILayout.PropertyField(settings.FindPropertyRelative("preferredAngle"));
                 EditorGUILayout.PropertyField(settings.FindPropertyRelative("stiffness"));
             }
         }
 
         EditorGUILayout.Space(6f);
+    }
+
+    private static void DrawLimit(SerializedProperty property, string label)
+    {
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            EditorGUILayout.PrefixLabel(label);
+            SerializedProperty min = property.FindPropertyRelative("x");
+            SerializedProperty max = property.FindPropertyRelative("y");
+            min.floatValue = EditorGUILayout.FloatField(min.floatValue);
+            max.floatValue = EditorGUILayout.FloatField(max.floatValue);
+        }
     }
 
     private void DrawShapeBias()
@@ -219,6 +307,9 @@ public class IKSolverEditor : UnityEditor.Editor
             EditorGUILayout.PropertyField(chainColor);
             EditorGUILayout.PropertyField(targetColor);
             EditorGUILayout.PropertyField(poleColor);
+            EditorGUILayout.PropertyField(hingeColor);
+            EditorGUILayout.PropertyField(ballSocketColor);
+            EditorGUILayout.PropertyField(lockedColor);
             EditorGUILayout.PropertyField(gizmoSize);
         }
     }
