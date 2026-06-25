@@ -45,6 +45,12 @@ public class IKLegManager : MonoBehaviour
 
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 5f;
+    [SerializeField] private float moveAcceleration = 30f;
+    [SerializeField] private float moveDeceleration = 40f;
+    [SerializeField] private float idleSupportCenterPull = 8f;
+    [SerializeField] private float idleSupportCenterDeadZone = 0.05f;
+    [SerializeField] private float maxIdleSupportCenterCorrection = 0.25f;
+    [SerializeField] private float maxIdleSettleSpeed = 2f;
     [SerializeField] private float turnSpeed = 180f;
 
     [Header("Legs")]
@@ -100,7 +106,11 @@ public class IKLegManager : MonoBehaviour
     private Vector3 smoothedVelocity;
     private Vector3 supportCenter;
     private Vector3 desiredSupportCenter;
+    private Vector3 bodyVelocity;
+    private Vector3 lastMoveDirection;
+    private float idleSupportCenterCorrectionRemaining;
     private float currentTurnDegreesPerSecond;
+    private bool hasMoveInputThisFrame;
     private int activeStepGroup;
     private bool initialized;
     private Rigidbody bodyRigidbody;
@@ -185,6 +195,12 @@ public class IKLegManager : MonoBehaviour
         maxFootTwistAngle = Mathf.Max(0f, maxFootTwistAngle);
         minimumTurnSpeedForPrediction = Mathf.Max(0f, minimumTurnSpeedForPrediction);
         moveSpeed = Mathf.Max(0f, moveSpeed);
+        moveAcceleration = Mathf.Max(0f, moveAcceleration);
+        moveDeceleration = Mathf.Max(0f, moveDeceleration);
+        idleSupportCenterPull = Mathf.Max(0f, idleSupportCenterPull);
+        idleSupportCenterDeadZone = Mathf.Max(0f, idleSupportCenterDeadZone);
+        maxIdleSupportCenterCorrection = Mathf.Max(0f, maxIdleSupportCenterCorrection);
+        maxIdleSettleSpeed = Mathf.Max(0f, maxIdleSettleSpeed);
         turnSpeed = Mathf.Max(0f, turnSpeed);
         bodyOrientationSmoothing = Mathf.Max(0f, bodyOrientationSmoothing);
         minimumBodyOrientationFootSpread = Mathf.Max(0.0001f, minimumBodyOrientationFootSpread);
@@ -252,26 +268,43 @@ public class IKLegManager : MonoBehaviour
 
     private void MoveBody()
     {
-        if (moveAction == null || moveAction.action == null)
+        float deltaTime = Time.fixedDeltaTime;
+        Vector3 desiredVelocity = GetDesiredBodyVelocity(out bool hasMoveInput);
+        hasMoveInputThisFrame = hasMoveInput;
+        float acceleration = hasMoveInput ? moveAcceleration : moveDeceleration;
+        bodyVelocity = Vector3.MoveTowards(bodyVelocity, desiredVelocity, acceleration * deltaTime);
+        bodyVelocity = Vector3.ProjectOnPlane(bodyVelocity, GetMovementPlaneNormal());
+
+        if (hasMoveInput)
         {
+            idleSupportCenterCorrectionRemaining = maxIdleSupportCenterCorrection;
+        }
+        else if (bodyVelocity.sqrMagnitude > 0.000001f && idleSupportCenterCorrectionRemaining <= 0f)
+        {
+            bodyVelocity = Vector3.MoveTowards(bodyVelocity, Vector3.zero, moveDeceleration * deltaTime);
+        }
+
+        if (bodyVelocity.sqrMagnitude < 0.000001f)
+        {
+            bodyVelocity = Vector3.zero;
             return;
         }
 
-        Vector2 moveInput = moveAction.action.ReadValue<Vector2>();
-        if (moveInput.sqrMagnitude < 0.0001f)
+        Vector3 displacement = bodyVelocity * deltaTime;
+        if (!hasMoveInput)
         {
-            return;
+            float correctionDistance = displacement.magnitude;
+            if (correctionDistance > idleSupportCenterCorrectionRemaining)
+            {
+                displacement = displacement.normalized * idleSupportCenterCorrectionRemaining;
+                bodyVelocity = deltaTime > 0f ? displacement / deltaTime : Vector3.zero;
+                idleSupportCenterCorrectionRemaining = 0f;
+            }
+            else
+            {
+                idleSupportCenterCorrectionRemaining -= correctionDistance;
+            }
         }
-
-        Vector3 right = Body.right;
-        Vector3 forward = Body.forward;
-        Vector3 moveDirection = right * moveInput.x + forward * moveInput.y;
-        if (moveDirection.sqrMagnitude < 0.0001f)
-        {
-            return;
-        }
-
-        Vector3 displacement = moveDirection.normalized * (Mathf.Clamp01(moveInput.magnitude) * moveSpeed * Time.fixedDeltaTime);
 
         if (bodyRigidbody != null)
         {
@@ -283,6 +316,78 @@ public class IKLegManager : MonoBehaviour
         }
     }
 
+    private Vector3 GetDesiredBodyVelocity(out bool hasMoveInput)
+    {
+        hasMoveInput = false;
+
+        if (moveAction == null || moveAction.action == null)
+        {
+            return GetIdleSettleVelocity();
+        }
+
+        Vector2 moveInput = moveAction.action.ReadValue<Vector2>();
+        if (moveInput.sqrMagnitude < 0.0001f)
+        {
+            return GetIdleSettleVelocity();
+        }
+
+        Vector3 right = Body.right;
+        Vector3 forward = Body.forward;
+        Vector3 moveDirection = right * moveInput.x + forward * moveInput.y;
+        moveDirection = Vector3.ProjectOnPlane(moveDirection, GetMovementPlaneNormal());
+        if (moveDirection.sqrMagnitude < 0.0001f)
+        {
+            return GetIdleSettleVelocity();
+        }
+
+        hasMoveInput = true;
+        lastMoveDirection = moveDirection.normalized;
+        return lastMoveDirection * (Mathf.Clamp01(moveInput.magnitude) * moveSpeed);
+    }
+
+    private Vector3 GetIdleSettleVelocity()
+    {
+        if (lastMoveDirection.sqrMagnitude <= 0.0001f)
+        {
+            return Vector3.zero;
+        }
+
+        Vector3 moveDirection = Vector3.ProjectOnPlane(lastMoveDirection, GetMovementPlaneNormal());
+        if (moveDirection.sqrMagnitude <= 0.0001f)
+        {
+            return Vector3.zero;
+        }
+
+        moveDirection.Normalize();
+
+        Vector3 toSupportCenter = Vector3.ProjectOnPlane(supportCenter - currentCenterOfMass, GetMovementPlaneNormal());
+        float distance = Vector3.Dot(toSupportCenter, moveDirection);
+        float absDistance = Mathf.Abs(distance);
+        if (absDistance <= idleSupportCenterDeadZone)
+        {
+            return Vector3.zero;
+        }
+
+        float speed = Mathf.Min(absDistance * idleSupportCenterPull, maxIdleSettleSpeed);
+        if (speed <= 0f)
+        {
+            return Vector3.zero;
+        }
+
+        return moveDirection * (Mathf.Sign(distance) * speed);
+    }
+
+    private Vector3 GetMovementPlaneNormal()
+    {
+        Vector3 normal = Body.up;
+        if (normal.sqrMagnitude <= 0.0001f)
+        {
+            normal = -GetGravityDirection();
+        }
+
+        return normal.normalized;
+    }
+
     [ContextMenu("Initialize Legs")]
     public void Initialize()
     {
@@ -291,6 +396,10 @@ public class IKLegManager : MonoBehaviour
         smoothedVelocity = Vector3.zero;
         supportCenter = currentCenterOfMass;
         desiredSupportCenter = currentCenterOfMass;
+        bodyVelocity = Vector3.zero;
+        lastMoveDirection = Vector3.zero;
+        idleSupportCenterCorrectionRemaining = maxIdleSupportCenterCorrection;
+        hasMoveInputThisFrame = false;
 
         for (int i = 0; i < legs.Count; i++)
         {
@@ -626,7 +735,7 @@ public class IKLegManager : MonoBehaviour
                 continue;
             }
 
-            Vector3 liveLanding = GetDesiredFootPosition(leg);
+            Vector3 liveLanding = hasMoveInputThisFrame ? GetDesiredFootPosition(leg, true) : leg.stepEndPosition;
             Vector3 liveLandingHorizontal = GetHorizontalPosition(liveLanding);
             float liveLandingElevation = GetElevation(liveLanding);
             float remainingSwingTime = Mathf.Max((1f - leg.stepProgress) * stepDuration, Time.deltaTime);
@@ -706,7 +815,7 @@ public class IKLegManager : MonoBehaviour
                 continue;
             }
 
-            Vector3 desiredPosition = GetDesiredFootPosition(leg);
+            Vector3 desiredPosition = GetDesiredFootPosition(leg, hasMoveInputThisFrame);
             StartStep(leg, desiredPosition);
             startedAny = true;
         }
@@ -727,8 +836,13 @@ public class IKLegManager : MonoBehaviour
 
     private Vector3 GetDesiredFootPosition(ManagedLeg leg)
     {
+        return GetDesiredFootPosition(leg, hasMoveInputThisFrame);
+    }
+
+    private Vector3 GetDesiredFootPosition(ManagedLeg leg, bool useVelocityPrediction)
+    {
         Vector3 home = GetPredictedHomePosition(leg);
-        Vector3 predictedOffset = GetPlanarVelocityDirection() * stepLength * Mathf.Max(1f, velocityPredictionWeight);
+        Vector3 predictedOffset = useVelocityPrediction ? GetPlanarVelocityDirection() * stepLength * Mathf.Max(1f, velocityPredictionWeight) : Vector3.zero;
         Vector3 desired = home + predictedOffset;
 
         if (TryProjectToGround(desired, out Vector3 groundedPosition))
