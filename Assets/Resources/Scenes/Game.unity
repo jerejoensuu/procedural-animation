@@ -4111,6 +4111,9 @@ MonoBehaviour:
   chainColor: {r: 0, g: 1, b: 0, a: 1}
   targetColor: {r: 0, g: 1, b: 1, a: 1}
   poleColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  hingeColor: {r: 1, g: 0, b: 1, a: 1}
+  ballSocketColor: {r: 1, g: 0.5, b: 0, a: 1}
+  lockedColor: {r: 1, g: 0, b: 0, a: 1}
   gizmoSize: 0.04
 --- !u!1 &524965004
 GameObject:
@@ -6436,6 +6439,9 @@ MonoBehaviour:
   chainColor: {r: 0, g: 1, b: 0, a: 1}
   targetColor: {r: 0, g: 1, b: 1, a: 1}
   poleColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  hingeColor: {r: 1, g: 0, b: 1, a: 1}
+  ballSocketColor: {r: 1, g: 0.5, b: 0, a: 1}
+  lockedColor: {r: 1, g: 0, b: 0, a: 1}
   gizmoSize: 0.04
 --- !u!43 &724315360
 Mesh:
@@ -6719,6 +6725,9 @@ MonoBehaviour:
   chainColor: {r: 0, g: 1, b: 0, a: 1}
   targetColor: {r: 0, g: 1, b: 1, a: 1}
   poleColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  hingeColor: {r: 1, g: 0, b: 1, a: 1}
+  ballSocketColor: {r: 1, g: 0.5, b: 0, a: 1}
+  lockedColor: {r: 1, g: 0, b: 0, a: 1}
   gizmoSize: 0.04
 --- !u!43 &786878730
 Mesh:
@@ -7678,6 +7687,9 @@ MonoBehaviour:
   chainColor: {r: 0, g: 1, b: 0, a: 1}
   targetColor: {r: 0, g: 1, b: 1, a: 1}
   poleColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  hingeColor: {r: 1, g: 0, b: 1, a: 1}
+  ballSocketColor: {r: 1, g: 0.5, b: 0, a: 1}
+  lockedColor: {r: 1, g: 0, b: 0, a: 1}
   gizmoSize: 0.04
 --- !u!135 &818864599
 SphereCollider:
@@ -13023,6 +13035,9 @@ MonoBehaviour:
   chainColor: {r: 0, g: 1, b: 0, a: 1}
   targetColor: {r: 0, g: 1, b: 1, a: 1}
   poleColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  hingeColor: {r: 1, g: 0, b: 1, a: 1}
+  ballSocketColor: {r: 1, g: 0.5, b: 0, a: 1}
+  lockedColor: {r: 1, g: 0, b: 0, a: 1}
   gizmoSize: 0.04
 --- !u!1 &1406193863 stripped
 GameObject:
@@ -13118,6 +13133,9 @@ MonoBehaviour:
   chainColor: {r: 0, g: 1, b: 0, a: 1}
   targetColor: {r: 0, g: 1, b: 1, a: 1}
   poleColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  hingeColor: {r: 1, g: 0, b: 1, a: 1}
+  ballSocketColor: {r: 1, g: 0.5, b: 0, a: 1}
+  lockedColor: {r: 1, g: 0, b: 0, a: 1}
   gizmoSize: 0.04
 --- !u!4 &1406496291 stripped
 Transform:
@@ -14124,22 +14142,6 @@ PrefabInstance:
       value: Mesh
       objectReference: {fileID: 0}
     - target: {fileID: 2023136322098149222, guid: 808e3a96544ef384a92a69d6f0c89842, type: 3}
-      propertyPath: m_LocalRotation.w
-      value: 0.13890755
-      objectReference: {fileID: 0}
-    - target: {fileID: 2023136322098149222, guid: 808e3a96544ef384a92a69d6f0c89842, type: 3}
-      propertyPath: m_LocalRotation.x
-      value: -0.42827782
-      objectReference: {fileID: 0}
-    - target: {fileID: 2023136322098149222, guid: 808e3a96544ef384a92a69d6f0c89842, type: 3}
-      propertyPath: m_LocalRotation.y
-      value: 0.7910046
-      objectReference: {fileID: 0}
-    - target: {fileID: 2023136322098149222, guid: 808e3a96544ef384a92a69d6f0c89842, type: 3}
-      propertyPath: m_LocalRotation.z
-      value: -0.41423973
-      objectReference: {fileID: 0}
-    - target: {fileID: 2023136322098149222, guid: 808e3a96544ef384a92a69d6f0c89842, type: 3}
       propertyPath: m_LocalEulerAnglesHint.x
       value: 32.435
       objectReference: {fileID: 0}
@@ -14604,6 +14606,9 @@ MonoBehaviour:
   chainColor: {r: 0, g: 1, b: 0, a: 1}
   targetColor: {r: 0, g: 1, b: 1, a: 1}
   poleColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  hingeColor: {r: 1, g: 0, b: 1, a: 1}
+  ballSocketColor: {r: 1, g: 0.5, b: 0, a: 1}
+  lockedColor: {r: 1, g: 0, b: 0, a: 1}
   gizmoSize: 0.04
 --- !u!1 &1675928059
 GameObject:
@@ -15167,10 +15172,21 @@ MonoBehaviour:
   autoCaptureHomeOffsets: 1
   autoCreateMissingTargets: 1
   keepPlantedTargetsInWorld: 1
+  maintainBodyHeight: 1
+  autoCaptureBodyHeight: 1
+  bodyHeight: 1
+  bodyHeightSmoothing: 12
+  maxBodyHeightCorrectionSpeed: 4
   orientBodyToLegEnds: 1
   bodyOrientationSmoothing: 12
   minimumBodyOrientationFootSpread: 0.01
   moveSpeed: 5
+  moveAcceleration: 30
+  moveDeceleration: 40
+  idleSupportCenterPull: 8
+  idleSupportCenterDeadZone: 0.25
+  maxIdleSupportCenterCorrection: 1
+  maxIdleSettleSpeed: 2
   turnSpeed: 180
   solverSettingsProfile: {fileID: 11400000, guid: 014730caa13e1524bad5b60f8c849d64, type: 2}
   copySettingsFromLegIndex: 0
@@ -15332,7 +15348,7 @@ MonoBehaviour:
   groundMask:
     serializedVersion: 2
     m_Bits: 4294967295
-  groundProbeHeight: 1.5
+  groundProbeHeight: 1.25
   groundProbeDistance: 3
   groundOffset: 0.02
   gravityDirection: {x: 0, y: -1, z: 0}
@@ -18877,6 +18893,9 @@ MonoBehaviour:
   chainColor: {r: 0, g: 1, b: 0, a: 1}
   targetColor: {r: 0, g: 1, b: 1, a: 1}
   poleColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  hingeColor: {r: 1, g: 0, b: 1, a: 1}
+  ballSocketColor: {r: 1, g: 0.5, b: 0, a: 1}
+  lockedColor: {r: 1, g: 0, b: 0, a: 1}
   gizmoSize: 0.04
 --- !u!4 &2021835934 stripped
 Transform:
@@ -19343,6 +19362,9 @@ MonoBehaviour:
   chainColor: {r: 0, g: 1, b: 0, a: 1}
   targetColor: {r: 0, g: 1, b: 1, a: 1}
   poleColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  hingeColor: {r: 1, g: 0, b: 1, a: 1}
+  ballSocketColor: {r: 1, g: 0.5, b: 0, a: 1}
+  lockedColor: {r: 1, g: 0, b: 0, a: 1}
   gizmoSize: 0.04
 --- !u!1 &2084248650
 GameObject:

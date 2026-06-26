@@ -36,6 +36,14 @@ public class IKLegManager : MonoBehaviour
     [SerializeField] private bool autoCreateMissingTargets = true;
     [SerializeField] private bool keepPlantedTargetsInWorld = true;
 
+    [Header("Body Height")] [SerializeField]
+    private bool maintainBodyHeight = true;
+
+    [SerializeField] private bool autoCaptureBodyHeight = true;
+    [SerializeField] private float bodyHeight = 1f;
+    [SerializeField] private float bodyHeightSmoothing = 12f;
+    [SerializeField] private float maxBodyHeightCorrectionSpeed = 4f;
+
     [Header("Body Orientation")] [SerializeField]
     private bool orientBodyToLegEnds = true;
 
@@ -104,6 +112,7 @@ public class IKLegManager : MonoBehaviour
     private int _activeStepGroup;
     private bool _initialized;
     private Rigidbody _bodyRigidbody;
+    private Vector3? _pendingBodyPosition;
 
     public Vector3 CurrentCenterOfMass { get; private set; }
 
@@ -171,6 +180,9 @@ public class IKLegManager : MonoBehaviour
         maxIdleSupportCenterCorrection = Mathf.Max(0f, maxIdleSupportCenterCorrection);
         maxIdleSettleSpeed = Mathf.Max(0f, maxIdleSettleSpeed);
         turnSpeed = Mathf.Max(0f, turnSpeed);
+        bodyHeight = Mathf.Max(0f, bodyHeight);
+        bodyHeightSmoothing = Mathf.Max(0f, bodyHeightSmoothing);
+        maxBodyHeightCorrectionSpeed = Mathf.Max(0f, maxBodyHeightCorrectionSpeed);
         bodyOrientationSmoothing = Mathf.Max(0f, bodyOrientationSmoothing);
         minimumBodyOrientationFootSpread = Mathf.Max(0.0001f, minimumBodyOrientationFootSpread);
         copySettingsFromLegIndex = Mathf.Max(0, copySettingsFromLegIndex);
@@ -178,8 +190,11 @@ public class IKLegManager : MonoBehaviour
 
     private void FixedUpdate()
     {
+        _pendingBodyPosition = _bodyRigidbody != null ? _bodyRigidbody.position : Body.position;
         RotateBody();
         MoveBody();
+        MaintainBodyHeight();
+        _pendingBodyPosition = null;
     }
 
     private void RotateBody()
@@ -276,14 +291,7 @@ public class IKLegManager : MonoBehaviour
             }
         }
 
-        if (_bodyRigidbody != null)
-        {
-            _bodyRigidbody.MovePosition(_bodyRigidbody.position + displacement);
-        }
-        else
-        {
-            Body.position += displacement;
-        }
+        MoveBodyBy(displacement);
     }
 
     private Vector3 GetDesiredBodyVelocity(out bool hasMoveInput)
@@ -356,6 +364,142 @@ public class IKLegManager : MonoBehaviour
         }
 
         return normal.normalized;
+    }
+
+    private void MaintainBodyHeight()
+    {
+        if (!maintainBodyHeight)
+        {
+            return;
+        }
+
+        if (autoCaptureBodyHeight && bodyHeight <= 0.0001f)
+        {
+            CaptureCurrentBodyHeight();
+        }
+
+        Vector3 centerPosition = GetCurrentCenterPosition();
+        if (!TryGetBodyHeightReference(centerPosition, out Vector3 referencePosition))
+        {
+            return;
+        }
+
+        Vector3 up = -GetGravityDirection();
+        float currentHeight = Vector3.Dot(centerPosition - referencePosition, up);
+        float error = bodyHeight - currentHeight;
+        if (Mathf.Abs(error) <= 0.0001f)
+        {
+            return;
+        }
+
+        float deltaTime = Mathf.Max(Time.fixedDeltaTime, 0.0001f);
+        float blend = bodyHeightSmoothing <= 0f ? 1f : 1f - Mathf.Exp(-bodyHeightSmoothing * deltaTime);
+        float correction = error * blend;
+        if (maxBodyHeightCorrectionSpeed > 0f)
+        {
+            correction = Mathf.Clamp(correction, -maxBodyHeightCorrectionSpeed * deltaTime,
+                maxBodyHeightCorrectionSpeed * deltaTime);
+        }
+
+        MoveBodyBy(up * correction);
+    }
+
+    [ContextMenu("Capture Current Body Height")]
+    public void CaptureCurrentBodyHeight()
+    {
+        Vector3 centerPosition = GetCurrentCenterPosition();
+        if (!TryGetBodyHeightReference(centerPosition, out Vector3 referencePosition))
+        {
+            return;
+        }
+
+        bodyHeight = Mathf.Max(0f, Vector3.Dot(centerPosition - referencePosition, -GetGravityDirection()));
+    }
+
+    private bool TryGetBodyHeightReference(Vector3 centerPosition, out Vector3 referencePosition)
+    {
+        if (TryGetSupportGroundReference(centerPosition, out referencePosition))
+        {
+            return true;
+        }
+
+        if (TryGetGroundPoint(centerPosition, out referencePosition))
+        {
+            return true;
+        }
+
+        referencePosition = Vector3.zero;
+        return false;
+    }
+
+    private bool TryGetSupportGroundReference(Vector3 centerPosition, out Vector3 referencePosition)
+    {
+        Vector3 sum = Vector3.zero;
+        int count = 0;
+        foreach (var leg in legs)
+        {
+            if (!IsLegUsable(leg) || leg.isStepping)
+            {
+                continue;
+            }
+
+            sum += leg.plantedPosition;
+            count++;
+        }
+
+        if (count <= 0)
+        {
+            foreach (var leg in legs)
+            {
+                if (!IsLegUsable(leg))
+                {
+                    continue;
+                }
+
+                sum += leg.isStepping ? leg.stepStartPosition : leg.plantedPosition;
+                count++;
+            }
+        }
+
+        if (count <= 0)
+        {
+            referencePosition = Vector3.zero;
+            return false;
+        }
+
+        Vector3 up = -GetGravityDirection();
+        referencePosition = ProjectPointToPlane(centerPosition, sum / count, up);
+        return true;
+    }
+
+    private Vector3 GetCurrentCenterPosition()
+    {
+        if (_bodyRigidbody == null || !_pendingBodyPosition.HasValue)
+        {
+            return Center.position;
+        }
+
+        return Center.position + (_pendingBodyPosition.Value - Body.position);
+    }
+
+    private void MoveBodyBy(Vector3 displacement)
+    {
+        if (displacement.sqrMagnitude <= 0.0000000001f)
+        {
+            return;
+        }
+
+        if (_bodyRigidbody != null)
+        {
+            Vector3 position = _pendingBodyPosition ?? _bodyRigidbody.position;
+            position += displacement;
+            _pendingBodyPosition = position;
+            _bodyRigidbody.MovePosition(position);
+        }
+        else
+        {
+            Body.position += displacement;
+        }
     }
 
     [ContextMenu("Initialize Legs")]
@@ -439,6 +583,11 @@ public class IKLegManager : MonoBehaviour
             {
                 leg.localHomeOffset = Body.InverseTransformPoint(startPosition);
             }
+        }
+
+        if (autoCaptureBodyHeight)
+        {
+            CaptureCurrentBodyHeight();
         }
 
         _activeStepGroup = GetFirstStepGroup();
@@ -1239,17 +1388,29 @@ public class IKLegManager : MonoBehaviour
 
     private bool TryProjectToGround(Vector3 position, out Vector3 groundedPosition)
     {
+        if (TryGetGroundPoint(position, out Vector3 groundPoint))
+        {
+            groundedPosition = groundPoint - GetGravityDirection() * groundOffset;
+            return true;
+        }
+
+        groundedPosition = position;
+        return false;
+    }
+
+    private bool TryGetGroundPoint(Vector3 position, out Vector3 groundPoint)
+    {
         Vector3 gravity = GetGravityDirection();
         Vector3 origin = position - gravity * groundProbeHeight;
         float distance = groundProbeHeight + groundProbeDistance;
 
         if (Physics.Raycast(origin, gravity, out RaycastHit hit, distance, groundMask, QueryTriggerInteraction.Ignore))
         {
-            groundedPosition = hit.point - gravity * groundOffset;
+            groundPoint = hit.point;
             return true;
         }
 
-        groundedPosition = position;
+        groundPoint = position;
         return false;
     }
 

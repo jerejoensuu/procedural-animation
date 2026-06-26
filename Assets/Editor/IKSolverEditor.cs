@@ -13,8 +13,10 @@ public class IKSolverEditor : UnityEditor.Editor
     private SerializedProperty autoBuildFromRootToEnd;
     private SerializedProperty effectorTarget;
     private SerializedProperty bendPoleTarget;
+    private SerializedProperty orientationReference;
     private SerializedProperty restPose;
     private SerializedProperty matchTargetRotation;
+    private SerializedProperty keepBendPoleRelativeToOrientation;
     private SerializedProperty perJointSettings;
     private SerializedProperty solverWeight;
     private SerializedProperty restPoseWeight;
@@ -50,8 +52,10 @@ public class IKSolverEditor : UnityEditor.Editor
         autoBuildFromRootToEnd = serializedObject.FindProperty("autoBuildFromRootToEnd");
         effectorTarget = serializedObject.FindProperty("effectorTarget");
         bendPoleTarget = serializedObject.FindProperty("bendPoleTarget");
+        orientationReference = serializedObject.FindProperty("orientationReference");
         restPose = serializedObject.FindProperty("restPose");
         matchTargetRotation = serializedObject.FindProperty("matchTargetRotation");
+        keepBendPoleRelativeToOrientation = serializedObject.FindProperty("keepBendPoleRelativeToOrientation");
         perJointSettings = serializedObject.FindProperty("perJointSettings");
         solverWeight = serializedObject.FindProperty("solverWeight");
         restPoseWeight = serializedObject.FindProperty("restPoseWeight");
@@ -187,8 +191,10 @@ public class IKSolverEditor : UnityEditor.Editor
         EditorGUILayout.LabelField("Targets", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(effectorTarget);
         EditorGUILayout.PropertyField(bendPoleTarget, new GUIContent("Bend/Pole Target"));
+        EditorGUILayout.PropertyField(orientationReference);
         EditorGUILayout.PropertyField(restPose);
         EditorGUILayout.PropertyField(matchTargetRotation);
+        EditorGUILayout.PropertyField(keepBendPoleRelativeToOrientation);
         EditorGUILayout.Space(6f);
     }
 

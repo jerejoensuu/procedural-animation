@@ -18,7 +18,7 @@ MonoBehaviour:
     min: -180
     max: 180
     xLimits: {x: -180, y: 180}
-    yLimits: {x: -180, y: 180}
+    yLimits: {x: 0, y: 0}
     zLimits: {x: -180, y: 180}
     preferredAngle: 0
     stiffness: 0

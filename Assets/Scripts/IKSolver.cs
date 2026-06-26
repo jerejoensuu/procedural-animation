@@ -96,6 +96,7 @@ public class IKSolver : MonoBehaviour
 
     private readonly List<Transform> _restPoseJoints = new();
     private Vector3[] _positions;
+    private Vector3[] _restPositions;
     private Vector3[] _restDirections;
     private Vector3[] _restLocalDirections;
     private float[] _lengths;
@@ -348,6 +349,7 @@ public class IKSolver : MonoBehaviour
         }
 
         _positions = new Vector3[count];
+        _restPositions = new Vector3[count];
         _restDirections = new Vector3[count - 1];
         _restLocalDirections = new Vector3[count - 1];
         _lengths = new float[count - 1];
@@ -370,10 +372,15 @@ public class IKSolver : MonoBehaviour
 
         BuildRestPoseLookup();
 
+        for (int i = 0; i < count; i++)
+        {
+            _restPositions[i] = GetRestPositionSnapshot(i);
+        }
+
         for (int i = 0; i < count - 1; i++)
         {
-            Vector3 from = GetRestPosition(i);
-            Vector3 to = GetRestPosition(i + 1);
+            Vector3 from = _restPositions[i];
+            Vector3 to = _restPositions[i + 1];
             _restDirections[i] = to - from;
             _restLocalDirections[i] = GetStableLocalDirection(i);
             _lengths[i] = _restDirections[i].magnitude;
@@ -401,6 +408,8 @@ public class IKSolver : MonoBehaviour
         }
 
         int count = orderedJoints.Count;
+        ApplyRotationalRestPoseBias(count);
+
         for (int i = 0; i < count; i++)
         {
             if (orderedJoints[i] == null)
@@ -511,6 +520,40 @@ public class IKSolver : MonoBehaviour
         }
     }
 
+    private void ApplyRotationalRestPoseBias(int count)
+    {
+        if (restPoseWeight <= 0f || _restLocalRotations == null)
+        {
+            return;
+        }
+
+        int jointCount = Mathf.Min(Mathf.Min(count, perJointSettings.Count), _restLocalRotations.Length);
+        for (int i = 0; i < jointCount; i++)
+        {
+            Transform joint = orderedJoints[i];
+            if (joint == null)
+            {
+                continue;
+            }
+
+            JointSettings settings = perJointSettings[i];
+            if (settings.constraintType == JointConstraintType.Locked)
+            {
+                joint.localRotation = _restLocalRotations[i];
+                continue;
+            }
+
+            if (settings.constraintType == JointConstraintType.Hinge)
+            {
+                RelaxHingeTowardRest(i, restPoseWeight);
+                continue;
+            }
+
+            joint.localRotation = Quaternion.Slerp(joint.localRotation, _restLocalRotations[i], restPoseWeight);
+            ApplyConstraint(i);
+        }
+    }
+
     private void ApplyPole(int count)
     {
         if (bendPoleTarget == null || poleWeight <= 0f || count < 3)
@@ -606,7 +649,7 @@ public class IKSolver : MonoBehaviour
         {
             Vector3 axis = AxisVector(settings.axis);
             float angle = ExtractTwistAngle(delta, axis);
-            angle = GetContinuousHingeAngle(index, angle);
+            angle = ResolveHingeAngleForLimits(index, angle, settings);
             angle = ClampHingeAngle(angle, settings);
             angle = Mathf.Lerp(angle, settings.preferredAngle, settings.stiffness);
             _hingeAngles[index] = angle;
@@ -632,7 +675,7 @@ public class IKSolver : MonoBehaviour
 
         if (restDirection.sqrMagnitude <= 0.000001f || solvedDirection.sqrMagnitude <= 0.000001f)
         {
-            ApplyConstraint(index);
+            RelaxHingeTowardRest(index, restPoseWeight);
             return;
         }
 
@@ -646,11 +689,12 @@ public class IKSolver : MonoBehaviour
         Vector3 projectedSolved = Vector3.ProjectOnPlane(localSolvedDirection, hingeAxis);
         if (projectedRest.sqrMagnitude <= 0.000001f || projectedSolved.sqrMagnitude <= 0.000001f)
         {
-            ApplyConstraint(index);
+            RelaxHingeTowardRest(index, restPoseWeight);
             return;
         }
 
-        float angle = GetContinuousHingeAngle(index, Vector3.SignedAngle(projectedRest, projectedSolved, hingeAxis));
+        float angle = Vector3.SignedAngle(projectedRest, projectedSolved, hingeAxis);
+        angle = ResolveHingeAngleForLimits(index, angle, settings);
         angle = ClampHingeAngle(angle, settings);
         angle = Mathf.Lerp(angle, settings.preferredAngle, settings.stiffness);
         _hingeAngles[index] = angle;
@@ -736,7 +780,7 @@ public class IKSolver : MonoBehaviour
         Vector3 projectedTarget = Vector3.ProjectOnPlane(toTarget, hingeAxisWorld);
         if (projectedEnd.sqrMagnitude <= 0.000001f || projectedTarget.sqrMagnitude <= 0.000001f)
         {
-            ApplyConstraint(index);
+            RelaxHingeTowardRest(index, restPoseWeight);
             return;
         }
 
@@ -746,6 +790,31 @@ public class IKSolver : MonoBehaviour
         angle = Mathf.Lerp(angle, settings.preferredAngle, settings.stiffness);
         _hingeAngles[index] = angle;
         joint.localRotation = rest * Quaternion.AngleAxis(angle, axis);
+    }
+
+    private void RelaxHingeTowardRest(int index, float weight)
+    {
+        if (weight <= 0f || index < 0 || index >= perJointSettings.Count || index >= orderedJoints.Count ||
+            _restLocalRotations == null || index >= _restLocalRotations.Length)
+        {
+            ApplyConstraint(index);
+            return;
+        }
+
+        JointSettings settings = perJointSettings[index];
+        Transform joint = orderedJoints[index];
+        if (joint == null)
+        {
+            return;
+        }
+
+        Vector3 axis = AxisVector(settings.axis);
+        float currentAngle = GetCurrentHingeAngle(index, axis);
+        float restAngle = Mathf.Lerp(0f, settings.preferredAngle, settings.stiffness);
+        float angle = Mathf.Lerp(currentAngle, restAngle, weight);
+        angle = ClampHingeAngle(angle, settings);
+        _hingeAngles[index] = angle;
+        joint.localRotation = _restLocalRotations[index] * Quaternion.AngleAxis(angle, axis);
     }
 
     private void EnsureSettingsCount()
@@ -810,7 +879,7 @@ public class IKSolver : MonoBehaviour
         return string.Join("/", parts);
     }
 
-    private Vector3 GetRestPosition(int index)
+    private Vector3 GetRestPositionSnapshot(int index)
     {
         if (_restPoseJoints.Count == orderedJoints.Count && _restPoseJoints[index] != null)
         {
@@ -835,16 +904,7 @@ public class IKSolver : MonoBehaviour
 
     private Vector3 GetRestDirection(int index)
     {
-        Vector3 restDirection;
-        if (_restPoseJoints.Count == orderedJoints.Count && _restPoseJoints[index] != null &&
-            _restPoseJoints[index + 1] != null)
-        {
-            restDirection = _restPoseJoints[index + 1].position - _restPoseJoints[index].position;
-        }
-        else
-        {
-            restDirection = _restDirections[index];
-        }
+        Vector3 restDirection = _restDirections[index];
 
         if (orientationReference == null)
         {
@@ -910,7 +970,25 @@ public class IKSolver : MonoBehaviour
     {
         Transform joint = orderedJoints[index];
         Quaternion delta = Quaternion.Inverse(_restLocalRotations[index]) * joint.localRotation;
-        return GetContinuousHingeAngle(index, ExtractTwistAngle(delta, axis));
+        JointSettings settings = perJointSettings[index];
+        return ResolveHingeAngleForLimits(index, ExtractTwistAngle(delta, axis), settings);
+    }
+
+    private float ResolveHingeAngleForLimits(int index, float angle, JointSettings settings)
+    {
+        if (!UsesContinuousHingeAngle(settings))
+        {
+            return angle;
+        }
+
+        return GetContinuousHingeAngle(index, angle);
+    }
+
+    private static bool UsesContinuousHingeAngle(JointSettings settings)
+    {
+        float min = Mathf.Min(settings.min, settings.max);
+        float max = Mathf.Max(settings.min, settings.max);
+        return max - min > 180f;
     }
 
     private bool HasConstrainedJoint(int count)
