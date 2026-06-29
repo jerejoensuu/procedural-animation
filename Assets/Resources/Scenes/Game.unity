@@ -13470,8 +13470,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1526757692}
   serializedVersion: 2
-  m_LocalRotation: {x: -0.045184266, y: 0.69803, z: -0.67936295, w: 0.2217623}
-  m_LocalPosition: {x: -1.9480224, y: 5.182328, z: 2.293357}
+  m_LocalRotation: {x: 0.005707753, y: 0.95733845, z: -0.28829035, w: 0.018954149}
+  m_LocalPosition: {x: 0.13159037, y: 0.79550123, z: 6.127738}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -14078,14 +14078,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1557865064}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.46746695, y: 0, z: 0, w: 0.88401055}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 2.9, z: -1.29}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1526757693}
   m_Father: {fileID: 1708197537}
-  m_LocalEulerAnglesHint: {x: 55.74, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1001 &1626876451
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -15204,6 +15204,7 @@ MonoBehaviour:
     stepEndPosition: {x: 0, y: 0, z: 0}
     stepHorizontalPosition: {x: 0, y: 0, z: 0}
     stepElevation: 0
+    stepPredictionScale: 1
     stepProgress: 0
     isStepping: 0
   - name: R1
@@ -15218,6 +15219,7 @@ MonoBehaviour:
     stepEndPosition: {x: 0, y: 0, z: 0}
     stepHorizontalPosition: {x: 0, y: 0, z: 0}
     stepElevation: 0
+    stepPredictionScale: 1
     stepProgress: 0
     isStepping: 0
   - name: L2
@@ -15232,6 +15234,7 @@ MonoBehaviour:
     stepEndPosition: {x: 0, y: 0, z: 0}
     stepHorizontalPosition: {x: 0, y: 0, z: 0}
     stepElevation: 0
+    stepPredictionScale: 1
     stepProgress: 0
     isStepping: 0
   - name: R2
@@ -15246,6 +15249,7 @@ MonoBehaviour:
     stepEndPosition: {x: 0, y: 0, z: 0}
     stepHorizontalPosition: {x: 0, y: 0, z: 0}
     stepElevation: 0
+    stepPredictionScale: 1
     stepProgress: 0
     isStepping: 0
   - name: L3
@@ -15260,6 +15264,7 @@ MonoBehaviour:
     stepEndPosition: {x: 0, y: 0, z: 0}
     stepHorizontalPosition: {x: 0, y: 0, z: 0}
     stepElevation: 0
+    stepPredictionScale: 1
     stepProgress: 0
     isStepping: 0
   - name: R3
@@ -15274,6 +15279,7 @@ MonoBehaviour:
     stepEndPosition: {x: 0, y: 0, z: 0}
     stepHorizontalPosition: {x: 0, y: 0, z: 0}
     stepElevation: 0
+    stepPredictionScale: 1
     stepProgress: 0
     isStepping: 0
   - name: L4
@@ -15288,6 +15294,7 @@ MonoBehaviour:
     stepEndPosition: {x: 0, y: 0, z: 0}
     stepHorizontalPosition: {x: 0, y: 0, z: 0}
     stepElevation: 0
+    stepPredictionScale: 1
     stepProgress: 0
     isStepping: 0
   - name: R4
@@ -15302,13 +15309,14 @@ MonoBehaviour:
     stepEndPosition: {x: 0, y: 0, z: 0}
     stepHorizontalPosition: {x: 0, y: 0, z: 0}
     stepElevation: 0
+    stepPredictionScale: 1
     stepProgress: 0
     isStepping: 0
   stepHeight: 0.35
   maxReach: 2
   stepLength: 1
   maxElevationError: 0.15
-  stepDuration: 0.18
+  stepDuration: 0.3
   stepHeightCurve:
     serializedVersion: 2
     m_Curve:
@@ -15343,6 +15351,7 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   requireGroupComplete: 1
+  predictSupportCenter: 0
   centerOfMassLeadTime: 0.15
   maxSupportCenterError: 0.35
   allowIdleBalanceSteps: 0
@@ -15353,6 +15362,7 @@ MonoBehaviour:
   groundProbeDistance: 3
   groundOffset: 0.02
   gravityDirection: {x: 0, y: -1, z: 0}
+  footPlacementLeadTime: 0.1
   velocitySmoothing: 12
   velocityPredictionWeight: 1
   minimumMoveSpeedForPrediction: 0.05

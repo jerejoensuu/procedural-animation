@@ -77,7 +77,8 @@ public class IKLegManager : MonoBehaviour
 
     [Header("Gait")] [SerializeField] private bool requireGroupComplete = true;
 
-    [Header("Balance")] [SerializeField] private float centerOfMassLeadTime = 0.15f;
+    [Header("Balance")] [SerializeField] private bool predictSupportCenter;
+    [SerializeField] private float centerOfMassLeadTime = 0.15f;
     [SerializeField] private float maxSupportCenterError = 0.35f;
     [SerializeField] private bool allowIdleBalanceSteps;
 
@@ -88,7 +89,9 @@ public class IKLegManager : MonoBehaviour
     [SerializeField] private Vector3 gravityDirection = Vector3.down;
 
     [Header("Prediction")] [SerializeField]
-    private float velocitySmoothing = 12f;
+    private float footPlacementLeadTime = 0.1f;
+
+    [SerializeField] private float velocitySmoothing = 12f;
 
     [SerializeField] private float velocityPredictionWeight = 1f;
     [SerializeField] private float minimumMoveSpeedForPrediction = 0.05f;
@@ -171,6 +174,7 @@ public class IKLegManager : MonoBehaviour
         maxSupportCenterError = Mathf.Max(0.01f, maxSupportCenterError);
         groundProbeHeight = Mathf.Max(0f, groundProbeHeight);
         groundProbeDistance = Mathf.Max(0f, groundProbeDistance);
+        footPlacementLeadTime = Mathf.Max(0f, footPlacementLeadTime);
         velocitySmoothing = Mathf.Max(0f, velocitySmoothing);
         velocityPredictionWeight = Mathf.Max(0f, velocityPredictionWeight);
         angularPredictionTime = Mathf.Max(0f, angularPredictionTime);
@@ -698,9 +702,13 @@ public class IKLegManager : MonoBehaviour
 
         SupportCenter = count > 0 ? sum / count : CurrentCenterOfMass;
 
-        Vector3 predictedCenter =
-            CurrentCenterOfMass + Vector3.ProjectOnPlane(SmoothedVelocity, up) * centerOfMassLeadTime;
-        DesiredSupportCenter = ProjectPointToPlane(predictedCenter, SupportCenter, up);
+        Vector3 desiredCenter = CurrentCenterOfMass;
+        if (predictSupportCenter)
+        {
+            desiredCenter += Vector3.ProjectOnPlane(SmoothedVelocity, up) * centerOfMassLeadTime;
+        }
+
+        DesiredSupportCenter = ProjectPointToPlane(desiredCenter, SupportCenter, up);
     }
 
     private void UpdateBodyOrientation()
@@ -1063,7 +1071,7 @@ public class IKLegManager : MonoBehaviour
     {
         Vector3 home = GetPredictedHomePosition(leg);
         Vector3 predictedOffset = useVelocityPrediction
-            ? GetPlanarVelocityDirection() * (stepLength * Mathf.Max(1f, velocityPredictionWeight) * predictionScale)
+            ? GetFootPlacementPredictionOffset(predictionScale)
             : Vector3.zero;
         Vector3 desired = home + predictedOffset;
 
@@ -1073,6 +1081,28 @@ public class IKLegManager : MonoBehaviour
         }
 
         return desired;
+    }
+
+    private Vector3 GetFootPlacementPredictionOffset(float predictionScale)
+    {
+        if (footPlacementLeadTime <= 0f || velocityPredictionWeight <= 0f)
+        {
+            return Vector3.zero;
+        }
+
+        Vector3 up = -GetGravityDirection();
+        Vector3 planarVelocity = Vector3.ProjectOnPlane(SmoothedVelocity, up);
+        if (planarVelocity.magnitude < minimumMoveSpeedForPrediction)
+        {
+            planarVelocity = Vector3.ProjectOnPlane(_bodyVelocity, up);
+        }
+
+        if (planarVelocity.magnitude < minimumMoveSpeedForPrediction)
+        {
+            return Vector3.zero;
+        }
+
+        return planarVelocity * (footPlacementLeadTime * velocityPredictionWeight * Mathf.Max(0f, predictionScale));
     }
 
     private Vector3 GetPredictedHomePosition(ManagedLeg leg)
