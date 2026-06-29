@@ -107,8 +107,10 @@ public class IKLegManager : MonoBehaviour
     private Vector3 _bodyVelocity;
     private Vector3 _lastMoveDirection;
     private float _idleSupportCenterCorrectionRemaining;
+    private float _gaitDistanceAccumulator;
     private float _currentTurnDegreesPerSecond;
     private bool _hasMoveInputThisFrame;
+    private bool _wasLocomotionGaitActive;
     private int _activeStepGroup;
     private bool _initialized;
     private Rigidbody _bodyRigidbody;
@@ -513,7 +515,9 @@ public class IKLegManager : MonoBehaviour
         _bodyVelocity = Vector3.zero;
         _lastMoveDirection = Vector3.zero;
         _idleSupportCenterCorrectionRemaining = maxIdleSupportCenterCorrection;
+        _gaitDistanceAccumulator = 0f;
         _hasMoveInputThisFrame = false;
+        _wasLocomotionGaitActive = false;
 
         for (int i = 0; i < legs.Count; i++)
         {
@@ -891,8 +895,29 @@ public class IKLegManager : MonoBehaviour
 
     private void TryStartSteps()
     {
+        bool locomotionGaitActive = IsLocomotionGaitActive();
+        bool locomotionStepDue = UpdateLocomotionGait(locomotionGaitActive);
+
         if (requireGroupComplete && AnyLegStepping())
         {
+            return;
+        }
+
+        if (locomotionGaitActive)
+        {
+            if (!locomotionStepDue)
+            {
+                return;
+            }
+
+            int scheduledGroup = GetScheduledStepGroup();
+            bool startedScheduledGroup = StartStepGroup(scheduledGroup);
+            if (startedScheduledGroup)
+            {
+                ConsumeLocomotionGaitStep();
+                _activeStepGroup = GetNextStepGroup(scheduledGroup);
+            }
+
             return;
         }
 
@@ -925,6 +950,75 @@ public class IKLegManager : MonoBehaviour
         {
             _activeStepGroup = GetNextStepGroup(groupToStep);
         }
+    }
+
+    private bool IsLocomotionGaitActive()
+    {
+        return _hasMoveInputThisFrame || IsMovingOnGroundPlane();
+    }
+
+    private bool UpdateLocomotionGait(bool locomotionGaitActive)
+    {
+        if (!locomotionGaitActive)
+        {
+            _gaitDistanceAccumulator = 0f;
+            _wasLocomotionGaitActive = false;
+            return false;
+        }
+
+        float stepDistance = GetLocomotionGroupStepDistance();
+        if (!_wasLocomotionGaitActive)
+        {
+            _gaitDistanceAccumulator = stepDistance - GetInitialLocomotionStepDistance();
+            _wasLocomotionGaitActive = true;
+        }
+
+        _gaitDistanceAccumulator += GetPlanarDistance(_previousCenterOfMass, CurrentCenterOfMass);
+        return _gaitDistanceAccumulator >= stepDistance;
+    }
+
+    private void ConsumeLocomotionGaitStep()
+    {
+        _gaitDistanceAccumulator = Mathf.Max(0f, _gaitDistanceAccumulator - GetLocomotionGroupStepDistance());
+    }
+
+    private float GetLocomotionGroupStepDistance()
+    {
+        return Mathf.Max(0.01f, stepLength > 0.0001f ? stepLength : maxSupportCenterError);
+    }
+
+    private float GetInitialLocomotionStepDistance()
+    {
+        return GetLocomotionGroupStepDistance() / GetUsableStepGroupCount();
+    }
+
+    private int GetUsableStepGroupCount()
+    {
+        int count = 0;
+
+        for (int i = 0; i < legs.Count; i++)
+        {
+            ManagedLeg leg = legs[i];
+            if (!IsLegUsable(leg) || HasUsableGroupBefore(leg.stepGroup, i))
+            {
+                continue;
+            }
+
+            count++;
+        }
+
+        return Mathf.Max(1, count);
+    }
+
+    private int GetScheduledStepGroup()
+    {
+        if (HasUsableLegInGroup(_activeStepGroup))
+        {
+            return _activeStepGroup;
+        }
+
+        int nextGroup = GetNextStepGroup(_activeStepGroup);
+        return HasUsableLegInGroup(nextGroup) ? nextGroup : FindBestSupportGroup();
     }
 
     private bool StartStepGroup(int stepGroup)
@@ -1326,6 +1420,20 @@ public class IKLegManager : MonoBehaviour
         {
             ManagedLeg leg = legs[i];
             if (IsLegUsable(leg) && !leg.isStepping && leg.stepGroup == stepGroup)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool HasUsableGroupBefore(int stepGroup, int beforeIndex)
+    {
+        for (int i = 0; i < beforeIndex; i++)
+        {
+            ManagedLeg leg = legs[i];
+            if (IsLegUsable(leg) && leg.stepGroup == stepGroup)
             {
                 return true;
             }
