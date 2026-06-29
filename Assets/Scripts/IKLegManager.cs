@@ -23,6 +23,7 @@ public class IKLegManager : MonoBehaviour
         [HideInInspector] public Vector3 stepEndPosition;
         [HideInInspector] public Vector3 stepHorizontalPosition;
         [HideInInspector] public float stepElevation;
+        [HideInInspector] public float stepPredictionScale = 1f;
         [HideInInspector] public float stepProgress;
         [HideInInspector] public bool isStepping;
     }
@@ -110,6 +111,7 @@ public class IKLegManager : MonoBehaviour
     private float _gaitDistanceAccumulator;
     private float _currentTurnDegreesPerSecond;
     private bool _hasMoveInputThisFrame;
+    private bool _startupHalfStepPending;
     private bool _wasLocomotionGaitActive;
     private int _activeStepGroup;
     private bool _initialized;
@@ -517,6 +519,7 @@ public class IKLegManager : MonoBehaviour
         _idleSupportCenterCorrectionRemaining = maxIdleSupportCenterCorrection;
         _gaitDistanceAccumulator = 0f;
         _hasMoveInputThisFrame = false;
+        _startupHalfStepPending = false;
         _wasLocomotionGaitActive = false;
 
         for (int i = 0; i < legs.Count; i++)
@@ -580,6 +583,7 @@ public class IKLegManager : MonoBehaviour
             leg.stepEndPosition = startPosition;
             leg.stepHorizontalPosition = GetHorizontalPosition(startPosition);
             leg.stepElevation = GetElevation(startPosition);
+            leg.stepPredictionScale = 1f;
             leg.stepProgress = 1f;
             leg.isStepping = false;
 
@@ -859,7 +863,9 @@ public class IKLegManager : MonoBehaviour
                 continue;
             }
 
-            Vector3 liveLanding = _hasMoveInputThisFrame ? GetDesiredFootPosition(leg, true) : leg.stepEndPosition;
+            Vector3 liveLanding = _hasMoveInputThisFrame
+                ? GetDesiredFootPosition(leg, true, leg.stepPredictionScale)
+                : leg.stepEndPosition;
             Vector3 liveLandingHorizontal = GetHorizontalPosition(liveLanding);
             float liveLandingElevation = GetElevation(liveLanding);
             float remainingSwingTime = Mathf.Max((1f - leg.stepProgress) * stepDuration, Time.deltaTime);
@@ -911,7 +917,7 @@ public class IKLegManager : MonoBehaviour
             }
 
             int scheduledGroup = GetScheduledStepGroup();
-            bool startedScheduledGroup = StartStepGroup(scheduledGroup);
+            bool startedScheduledGroup = StartStepGroup(scheduledGroup, GetLocomotionStepPredictionScale());
             if (startedScheduledGroup)
             {
                 ConsumeLocomotionGaitStep();
@@ -962,6 +968,7 @@ public class IKLegManager : MonoBehaviour
         if (!locomotionGaitActive)
         {
             _gaitDistanceAccumulator = 0f;
+            _startupHalfStepPending = false;
             _wasLocomotionGaitActive = false;
             return false;
         }
@@ -969,8 +976,10 @@ public class IKLegManager : MonoBehaviour
         float stepDistance = GetLocomotionGroupStepDistance();
         if (!_wasLocomotionGaitActive)
         {
-            _gaitDistanceAccumulator = stepDistance - GetInitialLocomotionStepDistance();
+            _gaitDistanceAccumulator = stepDistance;
+            _startupHalfStepPending = true;
             _wasLocomotionGaitActive = true;
+            return true;
         }
 
         _gaitDistanceAccumulator += GetPlanarDistance(_previousCenterOfMass, CurrentCenterOfMass);
@@ -980,34 +989,12 @@ public class IKLegManager : MonoBehaviour
     private void ConsumeLocomotionGaitStep()
     {
         _gaitDistanceAccumulator = Mathf.Max(0f, _gaitDistanceAccumulator - GetLocomotionGroupStepDistance());
+        _startupHalfStepPending = false;
     }
 
     private float GetLocomotionGroupStepDistance()
     {
         return Mathf.Max(0.01f, stepLength > 0.0001f ? stepLength : maxSupportCenterError);
-    }
-
-    private float GetInitialLocomotionStepDistance()
-    {
-        return GetLocomotionGroupStepDistance() / GetUsableStepGroupCount();
-    }
-
-    private int GetUsableStepGroupCount()
-    {
-        int count = 0;
-
-        for (int i = 0; i < legs.Count; i++)
-        {
-            ManagedLeg leg = legs[i];
-            if (!IsLegUsable(leg) || HasUsableGroupBefore(leg.stepGroup, i))
-            {
-                continue;
-            }
-
-            count++;
-        }
-
-        return Mathf.Max(1, count);
     }
 
     private int GetScheduledStepGroup()
@@ -1021,7 +1008,17 @@ public class IKLegManager : MonoBehaviour
         return HasUsableLegInGroup(nextGroup) ? nextGroup : FindBestSupportGroup();
     }
 
+    private float GetLocomotionStepPredictionScale()
+    {
+        return _startupHalfStepPending ? 0.5f : 1f;
+    }
+
     private bool StartStepGroup(int stepGroup)
+    {
+        return StartStepGroup(stepGroup, 1f);
+    }
+
+    private bool StartStepGroup(int stepGroup, float predictionScale)
     {
         bool startedAny = false;
 
@@ -1032,21 +1029,22 @@ public class IKLegManager : MonoBehaviour
                 continue;
             }
 
-            Vector3 desiredPosition = GetDesiredFootPosition(leg, _hasMoveInputThisFrame);
-            StartStep(leg, desiredPosition);
+            Vector3 desiredPosition = GetDesiredFootPosition(leg, _hasMoveInputThisFrame, predictionScale);
+            StartStep(leg, desiredPosition, predictionScale);
             startedAny = true;
         }
 
         return startedAny;
     }
 
-    private void StartStep(ManagedLeg leg, Vector3 desiredPosition)
+    private void StartStep(ManagedLeg leg, Vector3 desiredPosition, float predictionScale)
     {
         leg.stepStartPosition = leg.plantedPosition;
         leg.target.position = leg.stepStartPosition;
         leg.stepEndPosition = desiredPosition;
         leg.stepHorizontalPosition = GetHorizontalPosition(leg.stepStartPosition);
         leg.stepElevation = GetElevation(leg.stepStartPosition);
+        leg.stepPredictionScale = Mathf.Max(0f, predictionScale);
         leg.stepProgress = 0f;
         leg.isStepping = true;
     }
@@ -1058,9 +1056,14 @@ public class IKLegManager : MonoBehaviour
 
     private Vector3 GetDesiredFootPosition(ManagedLeg leg, bool useVelocityPrediction)
     {
+        return GetDesiredFootPosition(leg, useVelocityPrediction, 1f);
+    }
+
+    private Vector3 GetDesiredFootPosition(ManagedLeg leg, bool useVelocityPrediction, float predictionScale)
+    {
         Vector3 home = GetPredictedHomePosition(leg);
         Vector3 predictedOffset = useVelocityPrediction
-            ? GetPlanarVelocityDirection() * (stepLength * Mathf.Max(1f, velocityPredictionWeight))
+            ? GetPlanarVelocityDirection() * (stepLength * Mathf.Max(1f, velocityPredictionWeight) * predictionScale)
             : Vector3.zero;
         Vector3 desired = home + predictedOffset;
 
@@ -1428,20 +1431,6 @@ public class IKLegManager : MonoBehaviour
         return false;
     }
 
-    private bool HasUsableGroupBefore(int stepGroup, int beforeIndex)
-    {
-        for (int i = 0; i < beforeIndex; i++)
-        {
-            ManagedLeg leg = legs[i];
-            if (IsLegUsable(leg) && leg.stepGroup == stepGroup)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private bool HasUsableLegInGroup(int stepGroup)
     {
         foreach (var leg in legs)
@@ -1529,6 +1518,15 @@ public class IKLegManager : MonoBehaviour
         if (planarVelocity.magnitude >= minimumMoveSpeedForPrediction)
         {
             return planarVelocity.normalized;
+        }
+
+        if (_hasMoveInputThisFrame)
+        {
+            Vector3 moveDirection = Vector3.ProjectOnPlane(_lastMoveDirection, up);
+            if (moveDirection.sqrMagnitude > 0.0001f)
+            {
+                return moveDirection.normalized;
+            }
         }
 
         return Vector3.zero;
