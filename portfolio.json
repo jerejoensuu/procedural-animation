@@ -1,9 +1,11 @@
 {
   "Summary": [
-    "Solo project",
-    "Partly ready for outside project usage",
-    "Created creatures adapt to the environment and procedurally place their legs on surfaces",
-    "Legs move based on the velocity of the body for natural movement"
-  ],
+    "Solo project focused on reusable procedural animation technology",
+    "Built as a portfolio showcase and technical foundation for a larger professional game project",
+    "Creatures adapt their leg placement to surrounding surfaces instead of relying only on authored animations",
+    "Legs step procedurally based on body velocity, helping movement respond naturally to direction and speed changes",
+    "Designed with configurable legs and stepping areas so the system can be adapted to different creature bodies",
+    "Current rewrite focuses on cleaner architecture and improved suitability for use outside the original spider demo"
+],
   "Priority": 0
 }
