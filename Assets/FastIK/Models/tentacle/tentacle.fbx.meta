@@ -110,3 +110,10 @@ ModelImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 139972
+  packageName: Fast IK
+  packageVersion: 1.2
+  assetPath: Assets/FastIK/Models/tentacle/tentacle.fbx
+  uploadId: 495221

@@ -6,3 +6,10 @@ NativeFormatImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 139972
+  packageName: Fast IK
+  packageVersion: 1.2
+  assetPath: Assets/FastIK/Materials/Yellow.mat
+  uploadId: 495221
