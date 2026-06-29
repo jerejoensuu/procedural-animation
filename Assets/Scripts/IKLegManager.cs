@@ -114,6 +114,7 @@ public class IKLegManager : MonoBehaviour
     private float _gaitDistanceAccumulator;
     private float _currentTurnDegreesPerSecond;
     private bool _hasMoveInputThisFrame;
+    private bool _wasMoveInputActive;
     private bool _startupHalfStepPending;
     private bool _wasLocomotionGaitActive;
     private int _activeStepGroup;
@@ -523,6 +524,7 @@ public class IKLegManager : MonoBehaviour
         _idleSupportCenterCorrectionRemaining = maxIdleSupportCenterCorrection;
         _gaitDistanceAccumulator = 0f;
         _hasMoveInputThisFrame = false;
+        _wasMoveInputActive = false;
         _startupHalfStepPending = false;
         _wasLocomotionGaitActive = false;
 
@@ -974,6 +976,9 @@ public class IKLegManager : MonoBehaviour
 
     private bool UpdateLocomotionGait(bool locomotionGaitActive)
     {
+        bool moveInputStarted = _hasMoveInputThisFrame && !_wasMoveInputActive;
+        _wasMoveInputActive = _hasMoveInputThisFrame;
+
         if (!locomotionGaitActive)
         {
             _gaitDistanceAccumulator = 0f;
@@ -983,11 +988,12 @@ public class IKLegManager : MonoBehaviour
         }
 
         float stepDistance = GetLocomotionGroupStepDistance();
-        if (!_wasLocomotionGaitActive)
+        if (!_wasLocomotionGaitActive || moveInputStarted)
         {
             _gaitDistanceAccumulator = stepDistance;
             _startupHalfStepPending = true;
             _wasLocomotionGaitActive = true;
+            _activeStepGroup = FindTrailingStepGroupForMovement();
             return true;
         }
 
@@ -1321,6 +1327,64 @@ public class IKLegManager : MonoBehaviour
         return foundAny ? firstGroup : currentGroup;
     }
 
+    private int FindTrailingStepGroupForMovement()
+    {
+        Vector3 moveDirection = GetPlanarVelocityDirection();
+        if (moveDirection.sqrMagnitude <= 0.0001f)
+        {
+            return HasUsableLegInGroup(_activeStepGroup) ? _activeStepGroup : GetFirstStepGroup();
+        }
+
+        bool found = false;
+        int bestGroup = _activeStepGroup;
+        float bestScore = float.PositiveInfinity;
+
+        for (int i = 0; i < legs.Count; i++)
+        {
+            ManagedLeg leg = legs[i];
+            if (!IsLegUsable(leg) || leg.isStepping)
+            {
+                continue;
+            }
+
+            int group = leg.stepGroup;
+            if (HasScoredGroupBefore(group, i))
+            {
+                continue;
+            }
+
+            float score = GetStepGroupMovementProjection(group, moveDirection);
+            if (!found || score < bestScore)
+            {
+                bestScore = score;
+                bestGroup = group;
+                found = true;
+            }
+        }
+
+        return found ? bestGroup : _activeStepGroup;
+    }
+
+    private float GetStepGroupMovementProjection(int stepGroup, Vector3 moveDirection)
+    {
+        float sum = 0f;
+        int count = 0;
+
+        foreach (var leg in legs)
+        {
+            if (!IsLegUsable(leg) || leg.isStepping || leg.stepGroup != stepGroup)
+            {
+                continue;
+            }
+
+            Vector3 toLeg = Vector3.ProjectOnPlane(leg.plantedPosition - CurrentCenterOfMass, -GetGravityDirection());
+            sum += Vector3.Dot(toLeg, moveDirection);
+            count++;
+        }
+
+        return count > 0 ? sum / count : float.PositiveInfinity;
+    }
+
     private int FindBestSupportGroup()
     {
         bool found = false;
@@ -1545,12 +1609,6 @@ public class IKLegManager : MonoBehaviour
     private Vector3 GetPlanarVelocityDirection()
     {
         Vector3 up = -GetGravityDirection();
-        Vector3 planarVelocity = Vector3.ProjectOnPlane(SmoothedVelocity, up);
-        if (planarVelocity.magnitude >= minimumMoveSpeedForPrediction)
-        {
-            return planarVelocity.normalized;
-        }
-
         if (_hasMoveInputThisFrame)
         {
             Vector3 moveDirection = Vector3.ProjectOnPlane(_lastMoveDirection, up);
@@ -1558,6 +1616,12 @@ public class IKLegManager : MonoBehaviour
             {
                 return moveDirection.normalized;
             }
+        }
+
+        Vector3 planarVelocity = Vector3.ProjectOnPlane(SmoothedVelocity, up);
+        if (planarVelocity.magnitude >= minimumMoveSpeedForPrediction)
+        {
+            return planarVelocity.normalized;
         }
 
         return Vector3.zero;
