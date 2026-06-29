@@ -871,7 +871,8 @@ public class IKLegManager : MonoBehaviour
                 continue;
             }
 
-            Vector3 liveLanding = _hasMoveInputThisFrame
+            bool updateLiveLanding = _hasMoveInputThisFrame || IsTurning();
+            Vector3 liveLanding = updateLiveLanding
                 ? GetDesiredFootPosition(leg, true, leg.stepPredictionScale)
                 : leg.stepEndPosition;
             Vector3 liveLandingHorizontal = GetHorizontalPosition(liveLanding);
