@@ -13471,7 +13471,7 @@ Transform:
   m_GameObject: {fileID: 1526757692}
   serializedVersion: 2
   m_LocalRotation: {x: 0.005707753, y: 0.95733845, z: -0.28829035, w: 0.018954149}
-  m_LocalPosition: {x: 0.13159037, y: 0.79550123, z: 6.127738}
+  m_LocalPosition: {x: 0.13159037, y: 0.79550123, z: 4.77}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -14078,14 +14078,14 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1557865064}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 2.9, z: -1.29}
+  m_LocalRotation: {x: 0, y: -0.30070576, z: 0, w: 0.953717}
+  m_LocalPosition: {x: 0, y: 2.9, z: -0.009}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1526757693}
   m_Father: {fileID: 1708197537}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: -35, z: 0}
 --- !u!1001 &1626876451
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -15362,7 +15362,7 @@ MonoBehaviour:
   groundProbeDistance: 3
   groundOffset: 0.02
   gravityDirection: {x: 0, y: -1, z: 0}
-  footPlacementLeadTime: 0.1
+  footPlacementLeadTime: 0.2
   velocitySmoothing: 12
   velocityPredictionWeight: 1
   minimumMoveSpeedForPrediction: 0.05
