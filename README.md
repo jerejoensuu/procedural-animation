@@ -30,7 +30,7 @@ The project explores animation techniques used for multi-legged creatures, with 
 </p>
 
 <p align="center">
-  <img src="./Images/Obstacles.gif" alt="Turning" width="49%" >
+  <img src="./Images/_Obstacles.gif" alt="Turning" width="49%" >
   <img src="./Images/Mound.gif" alt="All together" width="49%" >
 </p>
 
