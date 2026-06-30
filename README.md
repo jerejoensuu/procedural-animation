@@ -3,6 +3,10 @@
 <h4 align="center">A Unity technical demo for procedural creature animation using inverse kinematics.</h4>
 <br />
 
+## Disclaimer
+
+**This project is presented as a technical portfolio demonstration and is not intended for public use, distribution, or integration as a ready-made package. The codebase and project structure reflect an internal development prototype, with the primary focus placed on demonstrating procedural animation, inverse kinematics, and creature movement systems rather than external readability, documentation, or ease of setup.**
+
 ## Overview
 
 **Procedural Animation** is a Unity-based technical demo showcasing procedural leg movement, inverse kinematics, and reusable creature animation systems.
